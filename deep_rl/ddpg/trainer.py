@@ -5,8 +5,8 @@ The main training loop of DDPG. It also contains bookkeep and visualization
 import numpy as np
 import torch
 
-from lib.utils.replay.replay_buffer import ReplayBuffer
-from lib.utils.replay.prioritized_experience_replay import rank_based
+from ...utils.replay.replay_buffer import ReplayBuffer
+from ...utils.replay.prioritized_experience_replay import rank_based
 from .actor import ActorNetwork
 from .critic import CriticNetwork
 

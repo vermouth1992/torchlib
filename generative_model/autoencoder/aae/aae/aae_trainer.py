@@ -7,8 +7,8 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from lib.common import FloatTensor
-from lib.utils.plot_utils import get_visdom_line_plotter
+from .....common import FloatTensor
+from .....utils.plot_utils import get_visdom_line_plotter
 
 from .aae import AAE
 

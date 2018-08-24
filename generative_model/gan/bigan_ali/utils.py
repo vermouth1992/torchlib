@@ -9,7 +9,7 @@ from visdom import Visdom
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 
-from lib.common import FloatTensor
+from ....common import FloatTensor
 
 
 class SampleImage(object):

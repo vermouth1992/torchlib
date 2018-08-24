@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from lib.common import enable_cuda, FloatTensor
-from lib.utils.random.sampler import BaseSampler
+from .....common import enable_cuda, FloatTensor
+from .....utils.random.sampler import BaseSampler
 
 
 class AAE(object):

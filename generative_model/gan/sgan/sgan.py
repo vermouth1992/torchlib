@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from lib.common import enable_cuda, FloatTensor
+from torchlib.common import enable_cuda, FloatTensor
 
 
 class SemiSupervisedGAN(object):

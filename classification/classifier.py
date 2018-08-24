@@ -4,8 +4,8 @@ A simple classification interface
 import torch
 from tqdm import tqdm
 
-from lib.common import FloatTensor, LongTensor
-from lib.common import enable_cuda
+from ..common import FloatTensor, LongTensor
+from ..common import enable_cuda
 
 
 class Classifier(object):

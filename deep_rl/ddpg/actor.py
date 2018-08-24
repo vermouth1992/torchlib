@@ -5,7 +5,7 @@ Actor interface for all ddpg models
 import copy
 import torch
 
-from lib.common import FloatTensor, enable_cuda
+from ...common import FloatTensor, enable_cuda
 
 
 class ActorNetwork(object):

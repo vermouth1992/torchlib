@@ -5,8 +5,8 @@ Cifar10 dataloader
 import torch
 from torchvision import datasets, transforms
 
-from lib.dataset import dataset_root_path
-from lib.common import enable_cuda
+from .. import dataset_root_path
+from ...common import enable_cuda
 
 
 def get_cifar10_default_transform(train, augmentation=False):

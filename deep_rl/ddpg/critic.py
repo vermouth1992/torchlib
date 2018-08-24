@@ -7,7 +7,7 @@ import torch
 from torch.nn import MSELoss
 from torch.autograd import Variable
 
-from lib.common import FloatTensor, enable_cuda
+from ...common import FloatTensor, enable_cuda
 
 
 class CriticNetwork(object):

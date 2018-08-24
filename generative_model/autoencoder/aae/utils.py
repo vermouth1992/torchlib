@@ -7,7 +7,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from visdom import Visdom
 
-from lib.common import FloatTensor
+from ....common import FloatTensor
 
 class SampleImage(object):
     """ Make a grid and plot a class of image on one row """

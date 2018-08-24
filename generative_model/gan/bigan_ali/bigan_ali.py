@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-from lib.common import enable_cuda, FloatTensor
+from ....common import enable_cuda, FloatTensor
 
 
 class ALI(object):

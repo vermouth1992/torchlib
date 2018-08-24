@@ -13,7 +13,7 @@ from pandas.tseries.offsets import Day
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 
-from lib.common import enable_cuda
+from ...common import enable_cuda
 
 DATA_PATH_ROOT = os.path.expanduser('~/Documents/Deep_Learning_Resources/datasets/ausgrid')
 

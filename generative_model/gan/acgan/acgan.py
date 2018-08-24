@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 
-from lib.common import enable_cuda, FloatTensor, LongTensor
+from ....common import enable_cuda, FloatTensor, LongTensor
 
 
 class ACGAN(object):

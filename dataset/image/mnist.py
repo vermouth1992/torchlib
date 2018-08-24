@@ -6,8 +6,8 @@ import torch
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets, transforms
 
-from lib.dataset import dataset_root_path
-from lib.common import enable_cuda
+from .. import dataset_root_path
+from ...common import enable_cuda
 
 _default_mnist_dataset = None
 
