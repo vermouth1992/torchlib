@@ -8,7 +8,7 @@ from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 from visdom import Visdom
 
-from lib.common import enable_cuda
+from torchlib.common import enable_cuda
 
 
 def compute_accuracy(data_loader: DataLoader, gan_model):
