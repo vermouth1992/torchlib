@@ -7,9 +7,9 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
+from .utils import compute_accuracy
 from ....common import FloatTensor, LongTensor
 from ....utils.plot_utils import get_visdom_line_plotter
-from .utils import compute_accuracy
 
 
 class Trainer(object):

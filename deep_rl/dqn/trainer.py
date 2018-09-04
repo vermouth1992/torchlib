@@ -1,27 +1,36 @@
 """
-The main training loop of DDPG. It also contains bookkeep and visualization
+Trainer for DQN
 """
+from typing import Dict
 
 import numpy as np
 import torch
+from torchlib.utils.random.torch_random_utils import set_global_seeds
 
-from .actor import ActorNetwork
-from .critic import CriticNetwork
+from .q_network import QNetwork
 from ..utils.replay.prioritized_experience_replay import rank_based
 from ..utils.replay.replay_buffer import ReplayBuffer
 
-from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 class Trainer(object):
-    def __init__(self, env, actor: ActorNetwork, critic: CriticNetwork, actor_noise, config, obs_normalizer=None,
+    def __init__(self, env, q_network: QNetwork, exploration_criteria, config: Dict, obs_normalizer=None,
                  action_processor=None):
-        # config contains all the training parameters
+        """ Instantiate Trainer for DQN
+
+        Args:
+            env: gym env
+            q_network: Q network
+            exploration_criteria: a function takes predicted action and global step and produce action to take
+            config: contains all the training parameters.
+            obs_normalizer: normalize observation
+            action_processor: process action
+        """
+
         self.config = config
 
         self.env = env
-        self.actor = actor
-        self.critic = critic
-        self.actor_noise = actor_noise
+        self.q_network = q_network
+        self.exploration_criteria = exploration_criteria
         self.obs_normalizer = obs_normalizer
         self.action_processor = action_processor
 
@@ -44,10 +53,7 @@ class Trainer(object):
         print('Performance: {:.2f}±{:.2f}'.format(average, std))
 
     def train(self, num_episode, checkpoint_path, save_every_episode=1, verbose=True, debug=False):
-
-        self.actor.update_target_network()
-        self.critic.update_target_network()
-
+        self.q_network.update_target_network()
         set_global_seeds(self.config['seed'])
         batch_size = self.config['batch size']
         gamma = self.config['gamma']
@@ -73,13 +79,12 @@ class Trainer(object):
             previous_observation = self.env.reset()
             if self.obs_normalizer:
                 previous_observation = self.obs_normalizer(previous_observation)
-
             ep_reward = 0
             ep_ave_max_q = 0
             # keeps sampling until done
             for j in range(self.config['max step']):
-                action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(
-                    axis=0) + self.actor_noise()
+                action = self.q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
+                action = self.exploration_criteria(global_step, action)
 
                 if self.action_processor:
                     action_take = self.action_processor(action)
@@ -106,29 +111,20 @@ class Trainer(object):
                         t_batch = np.array([_[4] for _ in experience])
                         s2_batch = np.array([_[3] for _ in experience])
                     # Calculate targets
-                    target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
-
+                    target_q = np.max(self.q_network.compute_target_q_value(s2_batch), axis=1)
                     y_i = []
                     for k in range(batch_size):
                         if t_batch[k]:
                             y_i.append(r_batch[k])
                         else:
-                            y_i.append(r_batch[k] + gamma * target_q[k, 0])
+                            y_i.append(r_batch[k] + gamma * target_q[k])
 
-                    # Update the critic given the targets
-                    predicted_q_value, delta = self.critic.train(
-                        s_batch, a_batch, np.reshape(y_i, (batch_size, 1)))
+                    y_i = np.array(y_i)
 
+                    predicted_q_value, delta = self.q_network.train(s_batch, a_batch, y_i)
                     ep_ave_max_q += np.amax(predicted_q_value)
 
-                    # Update the actor policy using the sampled gradient
-                    a_outs = self.actor.predict(s_batch)
-                    grads = self.critic.action_gradients(s_batch, a_outs)
-                    self.actor.train(s_batch, grads[0])
-
-                    # Update target networks
-                    self.actor.update_target_network()
-                    self.critic.update_target_network()
+                    self.q_network.update_target_network()
 
                     if use_prioritized_buffer:
                         replay_buffer.update_priority(rank_e_id, delta + np.expand_dims(w, axis=1))
@@ -142,6 +138,7 @@ class Trainer(object):
                     if use_prioritized_buffer:
                         replay_buffer.rebalance()
                     print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
+                    # print(self.exploration_criteria.epsilon)
                     break
 
             if save_every_episode > 0 and i % (save_every_episode + 1) == 0:
@@ -150,47 +147,19 @@ class Trainer(object):
         self.save_checkpoint(checkpoint_path)
         print('Finish.')
 
-    def predict(self, observation):
-        """ predict the next action using actor model, only used in deploy.
-            Can be used in multiple environments.
-
-        Args:
-            observation: observation provided by the environment
-
-        Returns: action array with shape (batch_size, num_stocks + 1)
-        """
-        if self.obs_normalizer:
-            observation = self.obs_normalizer(observation)
-        action = self.actor.predict(observation)
-        if self.action_processor:
-            action = self.action_processor(action)
-        return action
-
     def predict_single(self, observation):
-        """ Predict the action of a single observation
-
-        Args:
-            observation: (num_stocks + 1, window_length)
-
-        Returns: a single action array with shape (num_stocks + 1,)
-        """
         if self.obs_normalizer:
             observation = self.obs_normalizer(observation)
-        action = self.actor.predict(np.expand_dims(observation, axis=0)).squeeze(axis=0)
+        action = self.q_network.predict_action(np.expand_dims(observation, axis=0))[0]
         if self.action_processor:
             action = self.action_processor(action)
         return action
 
     def save_checkpoint(self, checkpoint_path):
-        state = {
-            'actor': self.actor.gather_state_dict(),
-            'critic': self.critic.gather_state_dict()
-        }
-        torch.save(state, checkpoint_path)
+        torch.save(self.q_network.gather_state_dict(), checkpoint_path)
         print('Save checkpoint to {}'.format(checkpoint_path))
 
     def load_checkpoint(self, checkpoint_path, all=True):
         checkpoint = torch.load(checkpoint_path)
-        self.actor.scatter_state_dict(checkpoint['actor'], all)
-        self.critic.scatter_state_dict(checkpoint['critic'], all)
+        self.q_network.scatter_state_dict(checkpoint, all)
         print('Load checkpoint from {}'.format(checkpoint_path))

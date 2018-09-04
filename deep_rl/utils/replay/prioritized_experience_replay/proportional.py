@@ -1,4 +1,3 @@
-import numpy
 import random
 from . import sum_tree
 
