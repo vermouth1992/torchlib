@@ -9,7 +9,7 @@ from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 from .q_network import QNetwork
 from ..utils.replay.prioritized_experience_replay import rank_based
-from ..utils.replay.replay_buffer import ReplayBuffer
+from ..utils.replay.replay_buffer import ReplayBuffer, ReplayBufferFrame
 
 
 class Trainer(object):
@@ -34,12 +34,14 @@ class Trainer(object):
         self.obs_normalizer = obs_normalizer
         self.action_processor = action_processor
 
-    def test(self, num_episode=100):
+    def test(self, num_episode=100, render=False):
         reward_lst = []
         for episode in range(num_episode):
             current_reward = 0.
             observation = self.env.reset()
             for i in range(self.config['max step']):
+                if render:
+                    self.env.render()
                 action = self.predict_single(observation)
                 observation, reward, done, info = self.env.step(action)
                 current_reward += reward
@@ -84,7 +86,9 @@ class Trainer(object):
             # keeps sampling until done
             for j in range(self.config['max step']):
                 action = self.q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
-                action = self.exploration_criteria(global_step, action)
+
+                if np.random.rand() < self.exploration_criteria(global_step):
+                    action = self.env.action_space.sample()
 
                 if self.action_processor:
                     action_take = self.action_processor(action)
@@ -112,14 +116,7 @@ class Trainer(object):
                         s2_batch = np.array([_[3] for _ in experience])
                     # Calculate targets
                     target_q = np.max(self.q_network.compute_target_q_value(s2_batch), axis=1)
-                    y_i = []
-                    for k in range(batch_size):
-                        if t_batch[k]:
-                            y_i.append(r_batch[k])
-                        else:
-                            y_i.append(r_batch[k] + gamma * target_q[k])
-
-                    y_i = np.array(y_i)
+                    y_i = r_batch + gamma * target_q * (1 - t_batch)
 
                     predicted_q_value, delta = self.q_network.train(s_batch, a_batch, y_i)
                     ep_ave_max_q += np.amax(predicted_q_value)
@@ -127,7 +124,7 @@ class Trainer(object):
                     self.q_network.update_target_network()
 
                     if use_prioritized_buffer:
-                        replay_buffer.update_priority(rank_e_id, delta + np.expand_dims(w, axis=1))
+                        replay_buffer.update_priority(rank_e_id, np.expand_dims(w + delta, axis=1))
 
                 ep_reward += reward
                 previous_observation = observation
