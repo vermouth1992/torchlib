@@ -16,5 +16,5 @@ class EpsilonGreedy(Exploration):
         self.minimum = minimum
 
     def __call__(self, t):
-        explore_p = self.minimum + (self.epsilon - self.minimum) * np.exp(-self.decay * global_step)
+        explore_p = self.minimum + (self.epsilon - self.minimum) * np.exp(-self.decay * t)
         return explore_p

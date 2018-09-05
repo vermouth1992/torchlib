@@ -85,10 +85,10 @@ class Trainer(object):
             ep_ave_max_q = 0
             # keeps sampling until done
             for j in range(self.config['max step']):
-                action = self.q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
-
                 if np.random.rand() < self.exploration_criteria(global_step):
                     action = self.env.action_space.sample()
+                else:
+                    action = self.q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
 
                 if self.action_processor:
                     action_take = self.action_processor(action)
