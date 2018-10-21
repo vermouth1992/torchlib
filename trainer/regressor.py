@@ -39,7 +39,7 @@ class Regressor(object):
                 self.scheduler.step()
             train_loss = total_loss / total
             val_loss = self.evaluation(val_data_loader)
-            print('Train loss: {:.4f} - Val loss: {:.4f}'.format(train_loss, val_loss))
+            print('Train loss: {:.8f} - Val loss: {:.8f}'.format(train_loss, val_loss))
             if checkpoint_path and (i + 1) % checkpoint_per_epoch == 0:
                 self.save_checkpoint(checkpoint_path)
 
@@ -50,6 +50,8 @@ class Regressor(object):
         for data, labels in tqdm(data_loader):
             data = data.cuda()
             labels = labels.cuda()
+            data = data.type(FloatTensor)
+            labels = labels.type(FloatTensor)
             outputs = self.model(data)
             loss = self.criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
