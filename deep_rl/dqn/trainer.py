@@ -115,7 +115,12 @@ class Trainer(object):
                         t_batch = np.array([_[4] for _ in experience])
                         s2_batch = np.array([_[3] for _ in experience])
                     # Calculate targets
-                    target_q = np.max(self.q_network.compute_target_q_value(s2_batch), axis=1)
+                    target_q = self.q_network.compute_target_q_value(s2_batch)
+                    if self.config['double_q']:
+                        q_action = np.argmax(self.q_network.compute_q_value(s2_batch), axis=1)
+                        target_q = target_q[np.arange(batch_size), q_action]
+                    else:
+                        target_q = np.max(target_q, axis=1)
                     y_i = r_batch + gamma * target_q * (1 - t_batch)
 
                     predicted_q_value, delta = self.q_network.train(s_batch, a_batch, y_i)
