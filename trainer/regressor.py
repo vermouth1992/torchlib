@@ -1,9 +1,9 @@
 """
 A simple regressor interface
 """
+import numpy as np
 import torch
 from tqdm import tqdm
-import numpy as np
 
 from ..common import FloatTensor
 from ..common import enable_cuda
@@ -33,7 +33,6 @@ class Regressor(object):
                 outputs = self.model(data)
                 loss = self.criterion(outputs, labels)
                 total_loss += loss.item() * labels.size(0)
-                _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 loss.backward()
                 self.optimizer.step()
@@ -41,11 +40,11 @@ class Regressor(object):
                 self.scheduler.step()
             train_loss = total_loss / total
             val_loss = self.evaluation(val_data_loader)
+            print('Train loss: {:.8f} - Val loss: {:.8f}'.format(train_loss, val_loss))
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 if checkpoint_path:
                     self.save_checkpoint(checkpoint_path)
-            print('Train loss: {:.8f} - Val loss: {:.8f}'.format(train_loss, val_loss))
 
     def evaluation(self, data_loader):
         self.model.eval()
