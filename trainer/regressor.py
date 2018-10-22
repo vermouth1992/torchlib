@@ -22,7 +22,7 @@ class Regressor(object):
     def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None):
         best_val_loss = np.inf
         for i in range(epoch):
-            print('Epoch: {}'.format(i + 1))
+            print('Epoch: {}/{}'.format(i + 1, epoch))
             total_loss = 0.0
             total = 0
             for data_label in tqdm(train_data_loader):
