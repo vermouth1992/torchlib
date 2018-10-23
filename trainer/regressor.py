@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from ..common import FloatTensor
-from ..common import enable_cuda
+from torchlib.common import FloatTensor
+from torchlib.common import enable_cuda
 
 
 class Regressor(object):
@@ -46,20 +46,32 @@ class Regressor(object):
                 if checkpoint_path:
                     self.save_checkpoint(checkpoint_path)
 
+    def predict(self, data_loader):
+        self.model.eval()
+        out = []
+        with torch.no_grad():
+            for data, _ in tqdm(data_loader):
+                data = data.type(FloatTensor)
+                output = self.model(data).cpu().numpy()
+                out.append(output)
+        out = np.concatenate(out, axis=0)
+        self.model.train()
+        return out
+
+
     def evaluation(self, data_loader):
         self.model.eval()
         total_loss = 0.0
         total = 0
-        for data, labels in tqdm(data_loader):
-            data = data.cuda()
-            labels = labels.cuda()
-            data = data.type(FloatTensor)
-            labels = labels.type(FloatTensor)
-            outputs = self.model(data)
-            loss = self.criterion(outputs, labels)
-            total_loss += loss.item() * labels.size(0)
-            total += labels.size(0)
-        avg_loss = total_loss / total
+        with torch.no_grad():
+            for data, labels in tqdm(data_loader):
+                data = data.type(FloatTensor)
+                labels = labels.type(FloatTensor)
+                outputs = self.model(data)
+                loss = self.criterion(outputs, labels)
+                total_loss += loss.item() * labels.size(0)
+                total += labels.size(0)
+            avg_loss = total_loss / total
         self.model.train()
         return avg_loss
 
