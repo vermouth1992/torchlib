@@ -15,7 +15,7 @@ import torch.optim as optim
 from torch.nn.utils.weight_norm import weight_norm
 from torchvision.models.resnet import BasicBlock
 
-from torchlib.classification.classifier import Classifier
+from torchlib.trainer.classifier import Classifier
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
