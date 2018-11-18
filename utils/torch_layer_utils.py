@@ -118,6 +118,7 @@ def conv2d_bn_lrelu_dropout_block(in_channels, out_channels, kernel_size, stride
     layers.append(nn.Dropout(p))
     return layers
 
+
 def conv1d_trans_bn_relu_block(in_channels, out_channels, kernel_size, stride, padding, normalize=True, bias=True,
                                weight_norm=None):
     conv = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
@@ -140,6 +141,7 @@ def conv2d_trans_bn_relu_block(in_channels, out_channels, kernel_size, stride, p
         layers.append(nn.BatchNorm2d(out_channels))
     layers.append(nn.ReLU(inplace=True))
     return layers
+
 
 def conv1d_trans_bn_lrelu_block(in_channels, out_channels, kernel_size, stride, padding, alpha=0.2, normalize=True,
                                 bias=True, weight_norm=None):
@@ -216,3 +218,11 @@ def change_model_trainable(model: nn.Module, trainable=False):
     """
     for param in model.parameters():
         param.requires_grad = trainable
+
+
+def freeze(model: nn.Module):
+    change_model_trainable(model, False)
+
+
+def unfreeze(model: nn.Module):
+    change_model_trainable(model, True)
