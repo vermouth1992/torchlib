@@ -1,3 +1,4 @@
+runs/
 *.ckpt
 *.pth
 .idea/

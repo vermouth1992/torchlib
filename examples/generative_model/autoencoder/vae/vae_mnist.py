@@ -13,6 +13,7 @@ from tensorboardX import SummaryWriter
 from torchlib.dataset.image.mnist import get_mnist_data_loader, get_mnist_subset_data_loader
 from torchlib.generative_model.autoencoder.utils import SampleImage, Reconstruction, VisualizeLatent
 from torchlib.generative_model.autoencoder.vae import VAE, Trainer
+from torchvision import transforms
 
 
 class Encoder(nn.Module):
@@ -66,28 +67,32 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     pprint.pprint(args)
 
+    transform = transforms.Compose([
+        transforms.Pad(2),
+        transforms.ToTensor()
+    ])
+
     # parameters
     train = args['train']
     code_size = 10
-    recon_loss_f = nn.MSELoss()
+    recon_loss_f = nn.BCELoss(reduction='sum')
     checkpoint_path = './checkpoint/vae_mnist.ckpt'
-    learning_rate = 2e-4
+    learning_rate = 1e-3
 
     generator = Encoder(code_size)
     decoder = Decoder(code_size)
-    optimizer = torch.optim.Adam(chain(generator.parameters(), decoder.parameters()),
-                                 learning_rate, betas=(0.5, 0.999))
+    optimizer = torch.optim.Adam(chain(generator.parameters(), decoder.parameters()), learning_rate)
 
     model = VAE(generator, decoder, code_size, optimizer)
 
     sampler = SampleImage(10, 10)
-    data_loader = get_mnist_subset_data_loader(train=True, fraction=100)
+    data_loader = get_mnist_subset_data_loader(train=True, transform=transform, fraction=100)
     reconstruct = Reconstruction(next(iter(data_loader))[0])
 
     summary_writer = SummaryWriter('runs/vae_mnist')
 
     if train:
-        visualize_data_loader = get_mnist_subset_data_loader(train=True, fraction=1000)
+        visualize_data_loader = get_mnist_subset_data_loader(train=True, transform=transform, fraction=1000)
         visualize_callback = VisualizeLatent(visualize_data_loader, method='pca')
         resume = args['resume']
         num_epoch = int(args['epoch'])
@@ -97,7 +102,7 @@ if __name__ == '__main__':
         elif resume == 'checkpoint':
             model.load_checkpoint(checkpoint_path, all=True)
 
-        train_data_loader = get_mnist_data_loader(train=True)
+        train_data_loader = get_mnist_data_loader(train=True, transform=transform)
 
         trainer = Trainer(recon_loss_f)
         trainer.train(num_epoch, train_data_loader, model, checkpoint_path, epoch_per_save=10,

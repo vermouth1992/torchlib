@@ -41,6 +41,10 @@ class VAE(object):
         mu, logvar = self.encoder.forward(x)
         return mu, logvar
 
+    def encode_reparm(self, x):
+        mu, logvar = self.encode(x)
+        return self.reparameterize(mu, logvar)
+
     def decode(self, z):
         return self.decoder.forward(z)
 
@@ -87,7 +91,7 @@ class Trainer(object):
             kl_divergence_train = 0.
             print('Epoch {}/{}'.format(epoch + 1, num_epoch))
             for input, label in tqdm(train_data_loader):
-                n_iter += 1
+                model.optimizer.zero_grad()
                 input = input.type(FloatTensor)
                 mu, logvar = model.encode(input)
                 z = model.reparameterize(mu, logvar)
@@ -105,14 +109,18 @@ class Trainer(object):
                 summary_writer.add_scalar('data/reconstruction_loss', reconstruction_loss.item(), n_iter)
                 summary_writer.add_scalar('data/kl_divergence', kl_divergence.item(), n_iter)
 
+                n_iter += 1
+
             reconstruction_loss_train /= len(train_data_loader.dataset)
             kl_divergence_train /= len(train_data_loader.dataset)
 
             print('Reconstruction loss: {:.4f} - KL divergence: {:.4f}'.format(reconstruction_loss_train,
                                                                                kl_divergence_train))
 
-            if (epoch + 1) % epoch_per_save:
+            if (epoch + 1) % epoch_per_save == 0:
                 model.save_checkpoint(checkpoint_path)
 
             for callback in callbacks:
                 callback(epoch, model, summary_writer)
+
+        model.save_checkpoint(checkpoint_path)

@@ -24,7 +24,7 @@ class SampleImage(object):
 
         image = model.decode(self.fixed_z)
         x = torchvision.utils.make_grid(image, nrow=self.n_row)
-        summary_writer.add_image('Samples', x, epoch)
+        summary_writer.add_image('fig/Samples', x, epoch)
 
 
 class Reconstruction(object):
@@ -38,11 +38,11 @@ class Reconstruction(object):
 
     def __call__(self, n_iter, model, summary_writer: SummaryWriter):
         if not self.initialized:
-            summary_writer.add_image(torchvision.utils.make_grid(self.images, nrow=self.nrow), self.images, 0)
+            summary_writer.add_image('fig/Original', torchvision.utils.make_grid(self.images, nrow=self.nrow), 0)
 
-        reconstructed_images = model.reconstruct(self.images)
-        summary_writer.add_image(torchvision.utils.make_grid(reconstructed_images, nrow=self.nrow),
-                                 reconstructed_images, n_iter)
+        reconstructed_images = model.reconstruct(self.images.type(FloatTensor))
+        summary_writer.add_image('fig/Reconstructed', torchvision.utils.make_grid(reconstructed_images,
+                                                                              nrow=self.nrow), n_iter)
 
 
 class VisualizeLatent(object):
@@ -60,7 +60,7 @@ class VisualizeLatent(object):
     def __call__(self, n_iter, model, summary_writer: SummaryWriter):
         latent_list = []
         for data, _ in self.data_loader:
-            latent = model.encoder(data.type(FloatTensor))
+            latent = model.encode_reparm(data.type(FloatTensor))
             latent_list.append(latent)
         latent = torch.cat(latent_list, 0).detach().cpu().numpy()
         if latent.shape[1] > 2:
@@ -68,4 +68,4 @@ class VisualizeLatent(object):
 
         fig = plt.figure()
         plt.scatter(latent[:, 0], latent[:, 1], c=self.labels)
-        summary_writer.add_figure('fig/latent', fig, global_step=n_iter)
+        summary_writer.add_figure('fig/Latent', fig, global_step=n_iter)
