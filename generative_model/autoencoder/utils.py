@@ -43,7 +43,7 @@ class Reconstruction(object):
 
         reconstructed_images = model.reconstruct(self.images.type(FloatTensor))
         summary_writer.add_image('fig/Reconstructed', torchvision.utils.make_grid(reconstructed_images,
-                                                                              nrow=self.nrow), n_iter)
+                                                                                  nrow=self.nrow), n_iter)
 
 
 class VisualizeLatent(object):
@@ -69,4 +69,6 @@ class VisualizeLatent(object):
 
         fig = plt.figure()
         plt.scatter(latent[:, 0], latent[:, 1], c=self.labels)
+        plt.colorbar()
+        plt.grid()
         summary_writer.add_figure('fig/Latent', fig, global_step=n_iter)
