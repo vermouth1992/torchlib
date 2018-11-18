@@ -95,9 +95,9 @@ if __name__ == '__main__':
     train = args['train']
     code_size = 10
     recon_loss_f = nn.BCELoss(reduction='sum')
-    validity_loss_f = nn.BCELoss(reduction='sum')
+    validity_loss_f = nn.BCELoss()
     learning_rate = 1e-3
-    adv_ratio = 1.
+    adv_ratio = 1e3
 
     generator = Encoder(code_size)
     decoder = Decoder(code_size)
@@ -129,6 +129,7 @@ if __name__ == '__main__':
 
         train_data_loader = get_mnist_data_loader(train=True, transform=transform)
 
-        trainer = Trainer(recon_loss_f)
+        trainer = Trainer(recon_loss_f, validity_loss_f)
         trainer.train(num_epoch, train_data_loader, model, checkpoint_path, epoch_per_save=10,
-                      callbacks=[sampler, reconstruct, visualize_callback], summary_writer=summary_writer)
+                      callbacks=[sampler, reconstruct, visualize_callback], summary_writer=summary_writer,
+                      adv_ratio=adv_ratio)

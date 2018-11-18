@@ -72,7 +72,9 @@ class AAVAE(object):
         state = {
             'net_g': self.encoder.state_dict(),
             'net_dec': self.decoder.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
+            'net_d': self.discriminator.state_dict(),
+            'optimizer_g': self.optimizer_G.state_dict(),
+            'optimizer_d': self.optimizer_D.state_dict()
         }
         torch.save(state, checkpoint_path)
 

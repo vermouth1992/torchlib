@@ -39,6 +39,7 @@ class Reconstruction(object):
     def __call__(self, n_iter, model, summary_writer: SummaryWriter):
         if not self.initialized:
             summary_writer.add_image('fig/Original', torchvision.utils.make_grid(self.images, nrow=self.nrow), 0)
+            self.initialized = True
 
         reconstructed_images = model.reconstruct(self.images.type(FloatTensor))
         summary_writer.add_image('fig/Reconstructed', torchvision.utils.make_grid(reconstructed_images,
