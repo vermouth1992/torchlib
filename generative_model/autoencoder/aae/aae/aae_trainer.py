@@ -5,10 +5,9 @@ Trainer for AAE
 import numpy as np
 import torch
 from torch.autograd import Variable
+from torchlib.common import FloatTensor
+from torchlib.utils.plot_utils import get_visdom_line_plotter
 from tqdm import tqdm
-
-from .....common import FloatTensor
-from .....utils.plot_utils import get_visdom_line_plotter
 
 from .aae import AAE
 
