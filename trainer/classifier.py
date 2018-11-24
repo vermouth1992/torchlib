@@ -1,11 +1,11 @@
 """
 A simple classification interface
 """
-import torch
-from tqdm import tqdm
 
-from ..common import FloatTensor, LongTensor
-from ..common import enable_cuda
+import numpy as np
+import torch
+from torchlib.common import FloatTensor, LongTensor, enable_cuda
+from tqdm import tqdm
 
 
 class Classifier(object):
@@ -50,7 +50,21 @@ class Classifier(object):
                 self.save_checkpoint(checkpoint_path)
 
     def predict(self, data):
-        pass
+        """ Predict the class for data
+
+        Args:
+            data (N, ...):
+
+        Returns: class labels for each sample
+
+        """
+        self.model.eval()
+        if isinstance(data, np.ndarray):
+            data = torch.from_numpy(data)
+        data = data.type(FloatTensor)
+        outputs = self.model(data)
+        _, predicted = torch.max(outputs.data, 1)
+        return predicted.cpu().numpy()
 
     def evaluation(self, data_loader):
         self.model.eval()
@@ -58,8 +72,8 @@ class Classifier(object):
         total = 0
         correct = 0
         for data, labels in tqdm(data_loader):
-            data = data.cuda()
-            labels = labels.cuda()
+            data = data.type(FloatTensor)
+            labels = labels.type(LongTensor)
             outputs = self.model(data)
             loss = self.criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
