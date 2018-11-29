@@ -11,8 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchlib.deep_rl.dqn.q_network import QNetwork
-from torchlib.deep_rl.dqn.trainer import Trainer
+from torchlib.deep_rl.dqn import QNetwork, Trainer
 from torchlib.deep_rl.utils.exploration import EpsilonGreedy
 
 

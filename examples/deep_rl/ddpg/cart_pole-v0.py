@@ -3,20 +3,18 @@ Use DDPG to solve CartPole-v0
 """
 from __future__ import print_function, division
 
-from torchlib.deep_rl.ddpg.actor import ActorNetwork
-from torchlib.deep_rl.ddpg.critic import CriticNetwork
-from torchlib.deep_rl.ddpg.trainer import Trainer
-from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
-from torchlib.utils.weight_utils import fanin_init
+import argparse
+import pprint
+import sys
 
+import gym
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-import gym
-import argparse
-import sys
-import pprint
+from torchlib.deep_rl.ddpg import ActorNetwork, CriticNetwork, Trainer
+from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
+from torchlib.utils.weight_utils import fanin_init
 
 
 class ActorModule(nn.Module):
@@ -36,7 +34,7 @@ class ActorModule(nn.Module):
         x = self.fc2(x)
         x = F.relu(x)
         x = self.fc3(x)
-        x = F.tanh(x)
+        x = torch.tanh(x)
         x = x * self.action_bound
         return x
 
@@ -84,8 +82,9 @@ if __name__ == '__main__':
         'batch size': 64,
         'buffer size': 100000,
         'gamma': 0.99,
-        'use_prioritized_buffer': True
+        'use_prioritized_buffer': False
     }
+
 
     def action_processor(action):
         if action > 0:

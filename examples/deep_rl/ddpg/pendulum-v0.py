@@ -13,12 +13,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from torchlib.deep_rl.ddpg.actor import ActorNetwork
-from torchlib.deep_rl.ddpg.critic import CriticNetwork
+from torchlib.deep_rl.ddpg import ActorNetwork, CriticNetwork, Trainer
 from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
 from torchlib.utils.weight_utils import fanin_init
-from torchlib.deep_rl.ddpg.trainer import Trainer
 
 
 class ActorModule(nn.Module):
