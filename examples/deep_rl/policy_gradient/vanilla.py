@@ -6,6 +6,7 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 import gym.spaces
 import torch
 import torch.nn as nn
+from torchlib.common import FloatTensor, enable_cuda
 from torchlib.deep_rl.policy_gradient.vanilla import Agent, train
 
 
@@ -28,15 +29,15 @@ class PolicyDiscrete(nn.Module):
 
 class PolicyContinuous(nn.Module):
     def __init__(self, nn_size, state_dim, action_dim):
-        assert action_dim > 1, 'Action dim must be greater than 1. Got {}'.format(action_dim)
         super(PolicyContinuous, self).__init__()
-        self.logstd = torch.randn(action_dim, requires_grad=True)
+        self.logstd = torch.randn(action_dim, requires_grad=True).type(FloatTensor)
         self.model = nn.Sequential(
             nn.Linear(state_dim, nn_size),
             nn.ReLU(),
             nn.Linear(nn_size, nn_size),
             nn.ReLU(),
             nn.Linear(nn_size, action_dim),
+            nn.Tanh()
         )
 
     def forward(self, state):
@@ -80,9 +81,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     max_path_length = args.ep_len if args.ep_len > 0 else None
 
+    if args.env_name.startswith('Roboschool'):
+        import roboschool
+
     env = gym.make(args.env_name)
 
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
+    print('Env {}'.format(args.env_name))
+    if not discrete:
+        print('Action space high', env.action_space.high)
+        print('Action space low', env.action_space.low)
 
     # Observation and action sizes
     ob_dim = env.observation_space.shape[0]
@@ -92,6 +100,9 @@ if __name__ == '__main__':
         policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim)
     else:
         policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim)
+
+    if enable_cuda:
+        policy_net.cuda()
 
     policy_optimizer = torch.optim.Adam(policy_net.parameters(), args.learning_rate)
 

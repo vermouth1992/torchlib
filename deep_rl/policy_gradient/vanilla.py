@@ -112,11 +112,12 @@ class Agent(object):
         policy_loss.backward()
         self.policy_optimizer.step()
 
-    def save_checkpoint(self, path):
-        pass
+    def save_checkpoint(self, checkpoint_path):
+        torch.save(self.policy_net.state_dict(), checkpoint_path)
 
-    def load_checkpoint(self, path):
-        pass
+    def load_checkpoint(self, checkpoint_path):
+        state_dict = torch.load(checkpoint_path)
+        self.policy_net.load_state_dict(state_dict)
 
 
 def pathlength(path):
