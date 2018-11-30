@@ -202,12 +202,15 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         returns = [np.sum(path["reward"]) for path in paths]
         ep_lengths = [pathlength(path) for path in paths]
         avg_return = np.mean(returns)
+        std_return = np.std(returns)
         max_return = np.max(returns)
+        min_return = np.min(returns)
         writer.add_scalars('data/return', {'avg': avg_return,
-                                           'std': np.std(returns),
+                                           'std': std_return,
                                            'max': max_return,
-                                           'min': np.min(returns)}, itr)
+                                           'min': min_return}, itr)
         writer.add_scalars('data/episode_length', {'avg': np.mean(ep_lengths),
                                                    'std': np.std(ep_lengths)}, itr)
 
-        print('Iteration {} - Avg Return {:.2f} - Max Return {:.2f}'.format(itr, avg_return, max_return))
+        print('Iteration {} - Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}]'.format(
+            itr, avg_return, std_return, min_return, max_return))
