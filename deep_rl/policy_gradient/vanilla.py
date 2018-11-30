@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
-from torch.distributions import Categorical, Normal
+from torch.distributions import Categorical, MultivariateNormal
 from torchlib.common import FloatTensor, eps
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
@@ -40,7 +40,7 @@ class Agent(object):
             return Categorical(probs=probs)
         else:
             mean, logstd = self.policy_net.forward(state)
-            return Normal(mean, torch.exp(logstd))
+            return MultivariateNormal(mean, torch.exp(logstd))
 
     def sample_action(self, state):
         """ Run the forward path of policy_network without gradient.
@@ -67,7 +67,7 @@ class Agent(object):
                 return Categorical(prob).sample(batch_size)
             else:
                 mean, logstd = self.policy_net.forward(state)
-                return Normal(mean, torch.exp(logstd)).sample(batch_size)
+                return MultivariateNormal(mean, torch.exp(logstd)).sample(batch_size)
 
     def update_policy(self, observation, log_prob, rewards, num_trajectories):
         """ Update policy
@@ -146,11 +146,11 @@ def sample_trajectory(agent, env, max_path_length):
     while True:
         distribution = agent.get_action_distribution(np.array(ob))
         # ac and log_prob are nodes on computational graph
-        ac = distribution.sample()
+        ac = distribution.sample(torch.Size([1]))
         log_prob.append(distribution.log_prob(ac))
         obs.append(ob)
 
-        ob, rew, done, _ = env.step(ac.cpu().numpy())
+        ob, rew, done, _ = env.step(ac.cpu().numpy()[0])
         rewards.append(rew)
         steps += 1
         if done or steps > max_path_length:

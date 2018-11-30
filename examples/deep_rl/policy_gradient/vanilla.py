@@ -30,7 +30,7 @@ class PolicyDiscrete(nn.Module):
 class PolicyContinuous(nn.Module):
     def __init__(self, nn_size, state_dim, action_dim):
         super(PolicyContinuous, self).__init__()
-        self.logstd = torch.randn(action_dim, requires_grad=True).type(FloatTensor)
+        self.logstd = torch.randn([action_dim, action_dim], requires_grad=True).type(FloatTensor)
         self.model = nn.Sequential(
             nn.Linear(state_dim, nn_size),
             nn.ReLU(),
@@ -109,6 +109,8 @@ if __name__ == '__main__':
     if args.nn_baseline:
         baseline_net = Baseline(args.nn_size, ob_dim)
         baseline_optimizer = torch.optim.Adam(baseline_net.parameters(), args.learning_rate)
+        if enable_cuda:
+            baseline_net.cuda()
     else:
         baseline_net = None
         baseline_optimizer = None
