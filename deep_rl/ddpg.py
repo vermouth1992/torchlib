@@ -3,12 +3,11 @@ import copy
 import numpy as np
 import torch
 from torch.autograd import Variable
-from torch.nn import MSELoss
 from torchlib.common import FloatTensor, enable_cuda
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
-from .utils.replay.prioritized_experience_replay import rank_based
-from .utils.replay.replay_buffer import ReplayBuffer
+from .utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from .utils.schedules import LinearSchedule
 
 
 class ActorNetwork(object):
@@ -68,25 +67,24 @@ class CriticNetwork(object):
 
         self.critic_network = critic
         self.target_critic_network = copy.deepcopy(critic)
-        self.loss = MSELoss()
 
         if enable_cuda:
             self.critic_network.cuda()
             self.target_critic_network.cuda()
             self.loss.cuda()
 
-    def train(self, inputs, action, predicted_q_value):
+    def train(self, inputs, action, predicted_q_value, importance_weights):
         inputs = torch.from_numpy(inputs).type(FloatTensor)
         action = torch.from_numpy(action).type(FloatTensor)
         predicted_q_value = torch.from_numpy(predicted_q_value).type(FloatTensor)
+        importance_weights = torch.from_numpy(importance_weights).type(FloatTensor)
 
         self.optimizer.zero_grad()
         q_value = self.critic_network(inputs, action)
-        output = self.loss(q_value, predicted_q_value)
-
         delta = (predicted_q_value - q_value).data.cpu().numpy()
 
-        output.backward()
+        loss = (importance_weights * ((q_value - predicted_q_value) ** 2)).mean()
+        loss.backward()
         self.optimizer.step()
         return q_value.data.cpu().numpy(), delta
 
@@ -176,8 +174,9 @@ class Trainer(object):
                     'batch_size': batch_size,
                     'learn_start': 1000
                     }
-            replay_buffer = rank_based.Experience(conf)
+            replay_buffer = PrioritizedReplayBuffer(self.config['buffer size'], alpha=0.6)
             learn_start = conf['learn_start']
+            beta_schedule = LinearSchedule(1000000, initial_p=0.4, final_p=1.0)
         else:
             replay_buffer = ReplayBuffer(self.config['buffer size'])
             learn_start = batch_size
@@ -186,7 +185,7 @@ class Trainer(object):
         # main training loop
         for i in range(num_episode):
             if verbose and debug:
-                print("Episode: " + str(i) + " Replay Buffer " + str(replay_buffer.size()))
+                print("Episode: " + str(i) + " Replay Buffer " + str(len(replay_buffer)))
 
             previous_observation = self.env.reset()
             if self.obs_normalizer:
@@ -210,32 +209,23 @@ class Trainer(object):
                     observation = self.obs_normalizer(observation)
 
                 # add to buffer
-                replay_buffer.add(previous_observation, action, reward, done, observation)
+                replay_buffer.add(previous_observation, action, reward, observation, float(done))
 
-                if replay_buffer.record_size >= learn_start:
+                if len(replay_buffer) >= learn_start:
                     # batch update
                     if not use_prioritized_buffer:
-                        s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(batch_size)
+                        s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
+                        weights = np.ones_like(s_batch)
                     else:
-                        experience, w, rank_e_id = replay_buffer.sample_batch(global_step)
-                        s_batch = np.array([_[0] for _ in experience])
-                        a_batch = np.array([_[1] for _ in experience])
-                        r_batch = np.array([_[2] for _ in experience])
-                        t_batch = np.array([_[4] for _ in experience])
-                        s2_batch = np.array([_[3] for _ in experience])
+                        experience = replay_buffer.sample(batch_size, beta=beta_schedule.value(global_step))
+                        (s_batch, a_batch, r_batch, s2_batch, t_batch, weights, batch_idxes) = experience
                     # Calculate targets
                     target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
 
-                    y_i = []
-                    for k in range(batch_size):
-                        if t_batch[k]:
-                            y_i.append(r_batch[k])
-                        else:
-                            y_i.append(r_batch[k] + gamma * target_q[k, 0])
+                    y_i = np.expand_dims(r_batch, axis=-1) + gamma * target_q * (1 - np.expand_dims(t_batch, axis=-1))
 
                     # Update the critic given the targets
-                    predicted_q_value, delta = self.critic.train(
-                        s_batch, a_batch, np.reshape(y_i, (batch_size, 1)))
+                    predicted_q_value, delta = self.critic.train(s_batch, a_batch, y_i, weights)
 
                     ep_ave_max_q += np.amax(predicted_q_value)
 
@@ -249,7 +239,8 @@ class Trainer(object):
                     self.critic.update_target_network()
 
                     if use_prioritized_buffer:
-                        replay_buffer.update_priority(rank_e_id, delta + np.expand_dims(w, axis=1))
+                        new_priorities = np.abs(delta) + 1e-6
+                        replay_buffer.update_priorities(batch_idxes, new_priorities)
 
                 ep_reward += reward
                 previous_observation = observation
@@ -257,8 +248,6 @@ class Trainer(object):
                 global_step += 1
 
                 if done or j == self.config['max step'] - 1:
-                    if use_prioritized_buffer:
-                        replay_buffer.rebalance()
                     print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
                     break
 

@@ -6,8 +6,9 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 import gym.spaces
 import torch
 import torch.nn as nn
+import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torchlib.common import FloatTensor, enable_cuda
-from torchlib.deep_rl.policy_gradient.vanilla import Agent, train
+from torchlib.deep_rl.policy_gradient.vanilla import Agent
 
 
 class PolicyDiscrete(nn.Module):
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     max_path_length = args.ep_len if args.ep_len > 0 else None
 
     if args.env_name.startswith('Roboschool'):
-        import roboschool
+        pass
 
     env = gym.make(args.env_name)
 
@@ -117,5 +118,5 @@ if __name__ == '__main__':
 
     agent = Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer)
 
-    train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-          logdir='runs', seed=args.seed)
+    vanilla_pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
+                     logdir='runs', seed=args.seed)

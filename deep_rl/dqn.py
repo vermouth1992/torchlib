@@ -12,8 +12,7 @@ from torch.nn import SmoothL1Loss
 from torchlib.common import FloatTensor, LongTensor, enable_cuda
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
-from .utils.replay.prioritized_experience_replay import rank_based
-from .utils.replay.replay_buffer import ReplayBuffer
+from .utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
 
 
 class QNetwork(object):
@@ -141,7 +140,7 @@ class Trainer(object):
                     'batch_size': batch_size,
                     'learn_start': 1000
                     }
-            replay_buffer = rank_based.Experience(conf)
+            replay_buffer = PrioritizedReplayBuffer(self.config['buffer size'], alpha=0.6)
             learn_start = conf['learn_start']
         else:
             replay_buffer = ReplayBuffer(self.config['buffer size'])
@@ -176,12 +175,12 @@ class Trainer(object):
                     observation = self.obs_normalizer(observation)
 
                 # add to buffer
-                replay_buffer.add(previous_observation, action, reward, done, observation)
+                replay_buffer.add(previous_observation, action, reward, observation, float(done))
 
-                if replay_buffer.record_size >= learn_start:
+                if len(replay_buffer) >= learn_start:
                     # batch update
                     if not use_prioritized_buffer:
-                        s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(batch_size)
+                        s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
                     else:
                         experience, w, rank_e_id = replay_buffer.sample_batch(global_step)
                         s_batch = np.array([_[0] for _ in experience])

@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchlib.deep_rl.dqn import QNetwork, Trainer
-from torchlib.deep_rl.utils.exploration import EpsilonGreedy
+from torchlib.deep_rl.utils.schedules import EpsilonGreedy
 
 
 class QModule(nn.Module):

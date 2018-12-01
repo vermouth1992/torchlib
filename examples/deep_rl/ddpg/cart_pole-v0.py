@@ -82,7 +82,7 @@ if __name__ == '__main__':
         'batch size': 64,
         'buffer size': 100000,
         'gamma': 0.99,
-        'use_prioritized_buffer': False
+        'use_prioritized_buffer': True
     }
 
 
