@@ -174,7 +174,7 @@ def sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length):
 
 
 def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_path_length,
-          logdir='runs', seed=1996):
+          logdir=None, seed=1996):
     # Set random seeds
     set_global_seeds(seed)
     env.seed(seed)
@@ -183,7 +183,10 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
 
     total_timesteps = 0
 
-    writer = SummaryWriter(log_dir=os.path.join(logdir, exp))
+    if logdir:
+        writer = SummaryWriter(log_dir=os.path.join(logdir, exp))
+    else:
+        writer = None
 
     for itr in range(n_iter):
         paths, timesteps_this_batch = sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length)
@@ -205,12 +208,14 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         std_return = np.std(returns)
         max_return = np.max(returns)
         min_return = np.min(returns)
-        writer.add_scalars('data/return', {'avg': avg_return,
-                                           'std': std_return,
-                                           'max': max_return,
-                                           'min': min_return}, itr)
-        writer.add_scalars('data/episode_length', {'avg': np.mean(ep_lengths),
-                                                   'std': np.std(ep_lengths)}, itr)
+
+        if writer:
+            writer.add_scalars('data/return', {'avg': avg_return,
+                                               'std': std_return,
+                                               'max': max_return,
+                                               'min': min_return}, itr)
+            writer.add_scalars('data/episode_length', {'avg': np.mean(ep_lengths),
+                                                       'std': np.std(ep_lengths)}, itr)
 
         print('Iteration {} - Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}]'.format(
             itr, avg_return, std_return, min_return, max_return))

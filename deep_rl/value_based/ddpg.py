@@ -4,10 +4,9 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from torchlib.common import FloatTensor, enable_cuda
+from torchlib.deep_rl.utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from torchlib.deep_rl.utils.schedules import LinearSchedule
 from torchlib.utils.random.torch_random_utils import set_global_seeds
-
-from .utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
-from .utils.schedules import LinearSchedule
 
 
 class ActorNetwork(object):
