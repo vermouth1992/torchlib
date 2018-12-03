@@ -77,7 +77,7 @@ class QNetwork(object):
         target = self.target_network
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(
-                target_param.data * (1.0 - self.tau) + param.data * self.tau
+                param.data
             )
 
     def save_checkpoint(self, checkpoint_path):
@@ -110,7 +110,7 @@ def test(env, q_network, num_episode=100, seed=1996):
 
 def train(env, q_network, exploration, total_timesteps, replay_buffer_type='normal', replay_buffer_config=None,
           batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, double_q=True, seed=1996,
-          log_every_n_steps=10000, checkpoint_path=None):
+          log_every_n_steps=10000, target_update_freq=3000, checkpoint_path=None):
     q_network.update_target_network()
     set_global_seeds(seed)
     env.seed(seed)
@@ -130,21 +130,25 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
 
     previous_observation = env.reset()
     best_mean_episode_reward = -float('inf')
+
+    num_updates = 0
+
     for global_step in range(total_timesteps):
+        if replay_buffer_type == 'frame':
+            idx = replay_buffer.store_frame(previous_observation)
+
+
         if isinstance(exploration, Schedule):
             if np.random.rand() < exploration.value(global_step):
                 action = env.action_space.sample()
             else:
-                action = q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
+                action = q_network.predict_action(np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
 
         elif exploration == 'param_noise':
             raise NotImplementedError
 
         else:
             raise ValueError('Unknown exploration')
-
-        if replay_buffer_type == 'frame':
-            idx = replay_buffer.store_frame(previous_observation)
 
         observation, reward, done, _ = env.step(action)
 
@@ -182,7 +186,10 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
                 new_priorities = np.abs(delta) + eps
                 replay_buffer.update_priorities(batch_idxes, new_priorities)
 
-            q_network.update_target_network()
+            num_updates += 1
+
+            if num_updates % target_update_freq == 0:
+                q_network.update_target_network()
 
         if global_step % log_every_n_steps == 0:
             episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()

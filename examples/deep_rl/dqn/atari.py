@@ -17,39 +17,40 @@ from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_rel
 
 
 class QModule(nn.Module):
-    def __init__(self, action_dim):
+    def __init__(self, frame_history_len, action_dim):
         super(QModule, self).__init__()
         self.model = nn.Sequential(
-            *conv2d_bn_relu_block(3, 32, kernel_size=8, stride=4, padding=4, normalize=False),
-            *conv2d_bn_relu_block(32, 64, kernel_size=3, stride=2, padding=1, normalize=False),
+            *conv2d_bn_relu_block(frame_history_len, 32, kernel_size=8, stride=4, padding=4, normalize=False),
+            *conv2d_bn_relu_block(32, 64, kernel_size=4, stride=2, padding=2, normalize=False),
             *conv2d_bn_relu_block(64, 64, kernel_size=3, stride=1, padding=1, normalize=False),
             Flatten(),
-            *linear_bn_relu_block(10 * 10 * 64, 512, normalize=False),
-            *linear_bn_relu_block(512, action_dim, normalize=False)
+            *linear_bn_relu_block(12 * 12 * 64, 512, normalize=False),
+            nn.Linear(512, action_dim)
         )
 
     def forward(self, x):
         x = x / 255.0
+        x = x.permute(0, 3, 1, 2)
         x = self.model.forward(x)
         return x
 
 
 class DuelQModule(nn.Module):
-    def __init__(self, action_dim):
+    def __init__(self, frame_history_len, action_dim):
         super(DuelQModule, self).__init__()
         self.model = nn.Sequential(
-            *conv2d_bn_relu_block(3, 32, kernel_size=8, stride=4, padding=4, normalize=False),
-            *conv2d_bn_relu_block(32, 64, kernel_size=3, stride=2, padding=1, normalize=False),
+            *conv2d_bn_relu_block(frame_history_len, 32, kernel_size=8, stride=4, padding=4, normalize=False),
+            *conv2d_bn_relu_block(32, 64, kernel_size=4, stride=2, padding=2, normalize=False),
             *conv2d_bn_relu_block(64, 64, kernel_size=3, stride=1, padding=1, normalize=False),
             Flatten(),
-            *linear_bn_relu_block(10 * 10 * 64, 512, normalize=False),
-            *linear_bn_relu_block(512, action_dim, normalize=False)
+            *linear_bn_relu_block(12 * 12 * 64, 512, normalize=False),
         )
         self.adv_fc = nn.Linear(512, action_dim)
         self.value_fc = nn.Linear(512, 1)
 
     def forward(self, x):
         x = x / 255.0
+        x = x.permute(0, 3, 1, 2)
         x = self.model.forward(x)
         value = self.value_fc(x)
         adv = self.adv_fc(x)
@@ -65,15 +66,15 @@ def make_parser():
     parser.add_argument('--exp_name', type=str, default='vpg')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--n_iter', '-n', type=int, default=100000)
-    parser.add_argument('--batch_size', '-b', type=int, default=64)
-    parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-    parser.add_argument('--learning_freq', '-lf', type=int, default=1)
+    parser.add_argument('--batch_size', '-b', type=int, default=32)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
+    parser.add_argument('--learning_freq', '-lf', type=int, default=4)
     parser.add_argument('--replay_size', type=int, default=100000)
-    parser.add_argument('--nn_size', '-s', type=int, default=64)
     parser.add_argument('--learn_start', type=int, default=1000)
     parser.add_argument('--duel', action='store_true')
     parser.add_argument('--double_q', action='store_true')
     parser.add_argument('--log_every_n_steps', type=int, default=1000)
+    parser.add_argument('--target_update_freq', type=int, default=3000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--test', action='store_true')
     return parser
@@ -93,10 +94,12 @@ if __name__ == '__main__':
 
     env = wrap_deepmind(env)
 
+    frame_history_len = 4
+
     if args['duel']:
-        network = DuelQModule(action_dim=env.action_space.n)
+        network = DuelQModule(frame_history_len, action_dim=env.action_space.n)
     else:
-        network = QModule(action_dim=env.action_space.n)
+        network = QModule(frame_history_len, action_dim=env.action_space.n)
 
     optimizer = torch.optim.Adam(network.parameters(), lr=args['learning_rate'])
 
@@ -136,10 +139,11 @@ if __name__ == '__main__':
 
         replay_buffer_config = {
             'size': args['replay_size'],
-            'frame_history_len': 4
+            'frame_history_len': frame_history_len
         }
 
         dqn.train(env, q_network, exploration_schedule, args['n_iter'], 'frame', replay_buffer_config,
                   batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
                   learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
-                  log_every_n_steps=args['log_every_n_steps'], checkpoint_path=checkpoint_path)
+                  log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
+                  checkpoint_path=checkpoint_path)

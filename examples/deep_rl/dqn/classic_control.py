@@ -68,6 +68,7 @@ def make_parser():
     parser.add_argument('--duel', action='store_true')
     parser.add_argument('--double_q', action='store_true')
     parser.add_argument('--log_every_n_steps', type=int, default=1000)
+    parser.add_argument('--target_update_freq', type=int, default=3000)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--test', action='store_true')
     return parser
@@ -117,4 +118,5 @@ if __name__ == '__main__':
         dqn.train(env, q_network, exploration_criteria, args['n_iter'], args['replay_type'], replay_buffer_config,
                   batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
                   learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
-                  log_every_n_steps=args['log_every_n_steps'], checkpoint_path=checkpoint_path)
+                  log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
+                  checkpoint_path=checkpoint_path)
