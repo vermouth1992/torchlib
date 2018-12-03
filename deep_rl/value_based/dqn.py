@@ -219,7 +219,7 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
                     q_network.save_checkpoint(checkpoint_path)
                 std_episode_reward = np.std(last_one_hundred_episode_reward)
                 best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-                print("Timestep {}".format(global_step))
+                print("Timestep {}/{}".format(global_step, total_timesteps))
                 print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
                 print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
                                                              np.max(last_one_hundred_episode_reward)))

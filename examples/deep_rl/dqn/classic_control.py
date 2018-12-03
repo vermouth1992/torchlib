@@ -107,8 +107,8 @@ if __name__ == '__main__':
         exploration_criteria = PiecewiseSchedule(
             [
                 (0, 1.0),
-                (args['n_iter'] // 10, 0.01),
-            ], outside_value=0.01
+                (args['n_iter'] // 10, 0.02),
+            ], outside_value=0.02
         )
 
         replay_buffer_config = {
