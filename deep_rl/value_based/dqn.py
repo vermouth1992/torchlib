@@ -30,7 +30,7 @@ class QNetwork(object):
             self.target_network.cuda()
             self.loss.cuda()
 
-    def train(self, inputs, actions, predicted_q_value, weights):
+    def train(self, inputs, actions, predicted_q_value, weights, grad_norm_clipping=10):
         """ train the q network with one step
 
         Args:
@@ -52,6 +52,7 @@ class QNetwork(object):
         loss = self.loss(q_value, predicted_q_value)
         loss = (loss * weights).mean()
         loss.backward()
+        nn.utils.clip_grad_norm_(self.network.parameters(), grad_norm_clipping)
         self.optimizer.step()
         delta = (predicted_q_value - q_value).data.cpu().numpy()
         return q_value.data.cpu().numpy(), delta
@@ -61,12 +62,14 @@ class QNetwork(object):
 
     def compute_q_value(self, inputs):
         inputs = torch.from_numpy(inputs).type(FloatTensor)
-        q_value = self.network(inputs)
+        with torch.no_grad():
+            q_value = self.network(inputs)
         return q_value.data.cpu().numpy()
 
     def compute_target_q_value(self, inputs):
         inputs = torch.from_numpy(inputs).type(FloatTensor)
-        q_value = self.target_network(inputs)
+        with torch.no_grad():
+            q_value = self.target_network(inputs)
         return q_value.data.cpu().numpy()
 
     def update_target_network(self):
@@ -186,15 +189,15 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
             if len(episode_rewards) > 100:
                 last_one_hundred_episode_reward = episode_rewards[-100:]
                 mean_episode_reward = np.mean(last_one_hundred_episode_reward)
+                print('------------')
                 if checkpoint_path and mean_episode_reward > best_mean_episode_reward:
                     q_network.save_checkpoint(checkpoint_path)
                 std_episode_reward = np.std(last_one_hundred_episode_reward)
                 best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-                print('------------')
                 print("Timestep {}".format(global_step))
                 print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-                print('reward range [{}, {}]'.format(np.min(last_one_hundred_episode_reward),
+                print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
                                                      np.max(last_one_hundred_episode_reward)))
-                print("best mean reward %f" % best_mean_episode_reward)
+                print("best mean reward {:.2f}".format(best_mean_episode_reward))
                 print("episodes %d" % len(episode_rewards))
                 print("exploration %f" % exploration.value(global_step))

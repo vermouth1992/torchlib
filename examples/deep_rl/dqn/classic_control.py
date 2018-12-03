@@ -106,8 +106,8 @@ if __name__ == '__main__':
         exploration_criteria = PiecewiseSchedule(
             [
                 (0, 1.0),
-                (args['n_iter'] // 10, 0.02),
-            ], outside_value=0.02
+                (args['n_iter'] // 10, 0.01),
+            ], outside_value=0.01
         )
 
         replay_buffer_config = {
@@ -116,5 +116,5 @@ if __name__ == '__main__':
 
         dqn.train(env, q_network, exploration_criteria, args['n_iter'], args['replay_type'], replay_buffer_config,
                   batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
-                  double_q=args['double_q'], seed=args['seed'], log_every_n_steps=args['log_every_n_steps'],
-                  checkpoint_path=checkpoint_path)
+                  learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
+                  log_every_n_steps=args['log_every_n_steps'], checkpoint_path=checkpoint_path)
