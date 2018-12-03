@@ -73,12 +73,7 @@ class QNetwork(object):
         return q_value.data.cpu().numpy()
 
     def update_target_network(self):
-        source = self.network
-        target = self.target_network
-        for target_param, param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(
-                param.data
-            )
+        self.target_network.load_state_dict(self.network.state_dict())
 
     def save_checkpoint(self, checkpoint_path):
         torch.save(self.network.state_dict(), checkpoint_path)
@@ -133,16 +128,39 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
 
     num_updates = 0
 
-    for global_step in range(total_timesteps):
+    # warm the replay buffer
+    print('Warm up replay buffer')
+    for _ in range(learn_starts):
         if replay_buffer_type == 'frame':
             idx = replay_buffer.store_frame(previous_observation)
 
+        action = env.action_space.sample()
+        observation, reward, done, _ = env.step(action)
+
+        if replay_buffer_type == 'frame':
+            replay_buffer.store_effect(idx, action, reward, float(done))
+        else:
+            replay_buffer.add(previous_observation, action, reward, observation, float(done))
+
+        if done:
+            previous_observation = env.reset()
+        else:
+            previous_observation = observation
+
+    print('Start training')
+    for global_step in range(total_timesteps):
+        if replay_buffer_type == 'frame':
+            idx = replay_buffer.store_frame(previous_observation)
 
         if isinstance(exploration, Schedule):
             if np.random.rand() < exploration.value(global_step):
                 action = env.action_space.sample()
             else:
-                action = q_network.predict_action(np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
+                if replay_buffer_type == 'frame':
+                    action = q_network.predict_action(
+                        np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
+                else:
+                    action = q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
 
         elif exploration == 'param_noise':
             raise NotImplementedError
@@ -162,7 +180,7 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
         else:
             previous_observation = observation
 
-        if global_step >= learn_starts and global_step % learning_freq == 0:
+        if global_step % learning_freq == 0:
             if replay_buffer_type == 'normal' or replay_buffer_type == 'frame':
                 s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
                 weights = np.ones_like(r_batch)
@@ -204,7 +222,7 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
                 print("Timestep {}".format(global_step))
                 print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
                 print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
-                                                     np.max(last_one_hundred_episode_reward)))
+                                                             np.max(last_one_hundred_episode_reward)))
                 print("best mean reward {:.2f}".format(best_mean_episode_reward))
                 print("episodes %d" % len(episode_rewards))
                 print("exploration %f" % exploration.value(global_step))
