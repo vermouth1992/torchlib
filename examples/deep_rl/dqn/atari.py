@@ -68,14 +68,14 @@ def make_parser():
     parser.add_argument('--n_iter', '-n', type=int, default=100000)
     parser.add_argument('--batch_size', '-b', type=int, default=32)
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
-    parser.add_argument('--learning_freq', '-lf', type=int, default=4)
-    parser.add_argument('--replay_size', type=int, default=100000)
-    parser.add_argument('--learn_start', type=int, default=1000)
+    parser.add_argument('--learning_freq', '-lf', type=int, default=2)
+    parser.add_argument('--replay_size', type=int, default=500000)
+    parser.add_argument('--learn_start', type=int, default=5000)
     parser.add_argument('--duel', action='store_true')
     parser.add_argument('--double_q', action='store_true')
     parser.add_argument('--log_every_n_steps', type=int, default=1000)
-    parser.add_argument('--target_update_freq', type=int, default=3000)
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--target_update_freq', type=int, default=5000)
+    parser.add_argument('--seed', type=int, default=200)
     parser.add_argument('--test', action='store_true')
     return parser
 
@@ -107,31 +107,30 @@ if __name__ == '__main__':
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
-            (1e6, 0.1),
-            (num_iterations / 2, 0.01),
-        ], outside_value=0.01
+            (1e5, 0.02),
+        ], outside_value=0.02
     )
 
-    lr_multiplier = 1.0
+    # lr_multiplier = 1.0
+    #
+    # lr_schedule = PiecewiseSchedule([
+    #     (0, 1e-4 * lr_multiplier),
+    #     (num_iterations / 10, 1e-4 * lr_multiplier),
+    #     (num_iterations / 2, 5e-5 * lr_multiplier),
+    # ],
+    #     outside_value=5e-5 * lr_multiplier)
+    #
+    # lr_schedule_lambda = lambda t: lr_schedule.value(t)
+    #
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule_lambda)
 
-    lr_schedule = PiecewiseSchedule([
-        (0, 1e-4 * lr_multiplier),
-        (num_iterations / 10, 1e-4 * lr_multiplier),
-        (num_iterations / 2, 5e-5 * lr_multiplier),
-    ],
-        outside_value=5e-5 * lr_multiplier)
-
-    lr_schedule_lambda = lambda t: lr_schedule.value(t)
-
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule_lambda)
-
-    q_network = QNetwork(network, optimizer, scheduler, tau=1e-3)
+    q_network = QNetwork(network, optimizer, optimizer_scheduler=None, tau=1e-3)
     checkpoint_path = 'checkpoint/{}.ckpt'.format(env_name)
 
     if args['test']:
         try:
             q_network.load_checkpoint(checkpoint_path)
-            dqn.test(env, q_network, seed=args['seed'])
+            dqn.test(env, q_network, frame_history_len=frame_history_len, seed=args['seed'])
         except:
             print("Can't find checkpoint. Abort")
 
