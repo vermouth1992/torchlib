@@ -2,9 +2,11 @@ import copy
 
 import numpy as np
 import torch
+import torch.nn as nn
 from torch.autograd import Variable
-from torchlib.common import FloatTensor, enable_cuda
-from torchlib.deep_rl.utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from torchlib.common import FloatTensor, enable_cuda, eps
+from torchlib.deep_rl.utils.atari_wrappers import get_wrapper_by_name
+from torchlib.deep_rl.utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame
 from torchlib.deep_rl.utils.schedules import LinearSchedule
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
@@ -44,25 +46,21 @@ class ActorNetwork(object):
                 target_param.data * (1.0 - self.tau) + param.data * self.tau
             )
 
-    def gather_state_dict(self):
-        state_dict = {
-            'network': self.actor_network.state_dict(),
-            'target': self.target_actor_network.state_dict(),
-            'optimizer': self.optimizer.state_dict()
-        }
-        return state_dict
+    def save_checkpoint(self, checkpoint_path):
+        torch.save(self.actor_network.state_dict(), checkpoint_path)
+        print('Save checkpoint to {}'.format(checkpoint_path))
 
-    def scatter_state_dict(self, state_dict, all=True):
-        self.actor_network.load_state_dict(state_dict['network'])
-        self.target_actor_network.load_state_dict(state_dict['target'])
-        if all:
-            self.optimizer.load_state_dict(state_dict['optimizer'])
+    def load_checkpoint(self, checkpoint_path):
+        state_dict = torch.load(checkpoint_path)
+        self.actor_network.load_state_dict(state_dict)
+        print('Load checkpoint from {}'.format(checkpoint_path))
 
 
 class CriticNetwork(object):
     def __init__(self, critic, optimizer, tau):
         self.optimizer = optimizer
         self.tau = tau
+        self.loss = nn.SmoothL1Loss(reduction='none')
 
         self.critic_network = critic
         self.target_critic_network = copy.deepcopy(critic)
@@ -82,7 +80,8 @@ class CriticNetwork(object):
         q_value = self.critic_network(inputs, action)
         delta = (predicted_q_value - q_value).data.cpu().numpy()
 
-        loss = (importance_weights * ((q_value - predicted_q_value) ** 2)).mean()
+        loss = self.loss(q_value, predicted_q_value)
+        loss = (loss * importance_weights).mean()
         loss.backward()
         self.optimizer.step()
         return q_value.data.cpu().numpy(), delta
@@ -112,191 +111,138 @@ class CriticNetwork(object):
                 target_param.data * (1.0 - self.tau) + param.data * self.tau
             )
 
-    def gather_state_dict(self):
-        state_dict = {
-            'network': self.critic_network.state_dict(),
-            'target': self.target_critic_network.state_dict(),
-            'optimizer': self.optimizer.state_dict()
-        }
-        return state_dict
 
-    def scatter_state_dict(self, state_dict, all=True):
-        self.critic_network.load_state_dict(state_dict['network'])
-        self.target_critic_network.load_state_dict(state_dict['target'])
-        if all:
-            self.optimizer.load_state_dict(state_dict['optimizer'])
+def test(env, actor, num_episode=100, seed=1996):
+    set_global_seeds(seed)
+    env.seed(seed)
+    reward_lst = []
+    for i in range(num_episode):
+        previous_observation = env.reset()
+        done = False
+        episode_reward = 0
+        while not done:
+            action = actor.predict(np.expand_dims(previous_observation, axis=0))[0]
+            previous_observation, reward, done, _ = env.step(action)
+            episode_reward += reward
+        print('Episode: {}. Reward: {}'.format(i, episode_reward))
+        reward_lst.append(episode_reward)
+    print('Reward range [{}, {}]'.format(np.min(reward_lst), np.max(reward_lst)))
+    print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
 
 
-class Trainer(object):
-    def __init__(self, env, actor: ActorNetwork, critic: CriticNetwork, actor_noise, config, obs_normalizer=None,
-                 action_processor=None):
-        # config contains all the training parameters
-        self.config = config
+def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='normal', replay_buffer_config=None,
+          batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, seed=1996, log_every_n_steps=10000,
+          checkpoint_path=None):
+    actor.update_target_network()
+    critic.update_target_network()
 
-        self.env = env
-        self.actor = actor
-        self.critic = critic
-        self.actor_noise = actor_noise
-        self.obs_normalizer = obs_normalizer
-        self.action_processor = action_processor
+    set_global_seeds(seed)
+    env.seed(seed)
+    if replay_buffer_type == 'normal':
+        replay_buffer = ReplayBuffer(replay_buffer_config['size'])
+    elif replay_buffer_type == 'prioritized':
+        alpha = replay_buffer_config.get('alpha', 0.6)
+        iter = replay_buffer_config.get('iter', total_timesteps)
+        beta0 = replay_buffer_config.get('beta0', 0.4)
+        replay_buffer = PrioritizedReplayBuffer(replay_buffer_config['size'], alpha=alpha)
+        beta_schedule = LinearSchedule(iter, initial_p=beta0, final_p=1.0)
+    elif replay_buffer_type == 'frame':
+        frame_history_len = replay_buffer_config.get('frame_history_len', 4)
+        replay_buffer = ReplayBufferFrame(replay_buffer_config['size'], frame_history_len)
+    else:
+        raise ValueError('Unknown replay buffer type.')
 
-    def test(self, num_episode=100):
-        reward_lst = []
-        for episode in range(num_episode):
-            current_reward = 0.
-            observation = self.env.reset()
-            for i in range(self.config['max step']):
-                action = self.predict_single(observation)
-                observation, reward, done, info = self.env.step(action)
-                current_reward += reward
-                if done:
-                    break
-            print("Episode: {}, Reward: {}".format(episode, current_reward))
-            reward_lst.append(current_reward)
-        reward_lst = np.array(reward_lst)
-        average = reward_lst.mean()
-        std = reward_lst.std()
-        print('Performance: {:.2f}±{:.2f}'.format(average, std))
+    previous_observation = env.reset()
+    best_mean_episode_reward = -float('inf')
+    # warm the replay buffer
+    print('Warm up replay buffer')
+    for _ in range(learn_starts):
+        if replay_buffer_type == 'frame':
+            idx = replay_buffer.store_frame(previous_observation)
 
-    def train(self, num_episode, checkpoint_path, save_every_episode=1, verbose=True, debug=False):
+        action = env.action_space.sample()
+        observation, reward, done, _ = env.step(action)
 
-        self.actor.update_target_network()
-        self.critic.update_target_network()
-
-        set_global_seeds(self.config['seed'])
-        batch_size = self.config['batch size']
-        gamma = self.config['gamma']
-        use_prioritized_buffer = self.config['use_prioritized_buffer']
-        if use_prioritized_buffer:
-            # Initialize replay memory
-            conf = {'size': self.config['buffer size'],
-                    'batch_size': batch_size,
-                    'learn_start': 1000
-                    }
-            replay_buffer = PrioritizedReplayBuffer(self.config['buffer size'], alpha=0.6)
-            learn_start = conf['learn_start']
-            beta_schedule = LinearSchedule(1000000, initial_p=0.4, final_p=1.0)
+        if replay_buffer_type == 'frame':
+            replay_buffer.store_effect(idx, action, reward, float(done))
         else:
-            replay_buffer = ReplayBuffer(self.config['buffer size'])
-            learn_start = batch_size
+            replay_buffer.add(previous_observation, action, reward, observation, float(done))
 
-        global_step = 0
-        # main training loop
-        for i in range(num_episode):
-            if verbose and debug:
-                print("Episode: " + str(i) + " Replay Buffer " + str(len(replay_buffer)))
+        if done:
+            previous_observation = env.reset()
+        else:
+            previous_observation = observation
 
-            previous_observation = self.env.reset()
-            if self.obs_normalizer:
-                previous_observation = self.obs_normalizer(previous_observation)
+    print('Start training')
+    for global_step in range(total_timesteps):
+        if replay_buffer_type == 'frame':
+            idx = replay_buffer.store_frame(previous_observation)
 
-            ep_reward = 0
-            ep_ave_max_q = 0
-            # keeps sampling until done
-            for j in range(self.config['max step']):
-                action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(
-                    axis=0) + self.actor_noise()
+        if actor_noise == 'param_noise':
+            raise NotImplementedError
+        else:
+            if replay_buffer_type == 'frame':
+                action = actor.predict(
+                    np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
+            else:
+                action = actor.predict(np.expand_dims(previous_observation, axis=0))[0]
 
-                if self.action_processor:
-                    action_take = self.action_processor(action)
-                else:
-                    action_take = action
-                # step forward
-                observation, reward, done, _ = self.env.step(action_take)
+            action += actor_noise()
 
-                if self.obs_normalizer:
-                    observation = self.obs_normalizer(observation)
+        observation, reward, done, _ = env.step(action)
 
-                # add to buffer
-                replay_buffer.add(previous_observation, action, reward, observation, float(done))
+        if replay_buffer_type == 'frame':
+            replay_buffer.store_effect(idx, action, reward, float(done))
+        else:
+            replay_buffer.add(previous_observation, action, reward, observation, float(done))
 
-                if len(replay_buffer) >= learn_start:
-                    # batch update
-                    if not use_prioritized_buffer:
-                        s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
-                        weights = np.ones_like(s_batch)
-                    else:
-                        experience = replay_buffer.sample(batch_size, beta=beta_schedule.value(global_step))
-                        (s_batch, a_batch, r_batch, s2_batch, t_batch, weights, batch_idxes) = experience
-                    # Calculate targets
-                    target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
+        if done:
+            previous_observation = env.reset()
+        else:
+            previous_observation = observation
 
-                    y_i = np.expand_dims(r_batch, axis=-1) + gamma * target_q * (1 - np.expand_dims(t_batch, axis=-1))
+        if global_step % learning_freq == 0:
+            if replay_buffer_type == 'normal' or replay_buffer_type == 'frame':
+                s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
+                weights = np.ones_like(r_batch)
+            elif replay_buffer_type == 'prioritized':
+                experience = replay_buffer.sample(batch_size, beta=beta_schedule.value(global_step))
+                (s_batch, a_batch, r_batch, s2_batch, t_batch, weights, batch_idxes) = experience
+            else:
+                raise NotImplementedError
 
-                    # Update the critic given the targets
-                    predicted_q_value, delta = self.critic.train(s_batch, a_batch, y_i, weights)
+            target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
 
-                    ep_ave_max_q += np.amax(predicted_q_value)
+            y_i = np.expand_dims(r_batch, axis=-1) + gamma * target_q * (1 - np.expand_dims(t_batch, axis=-1))
 
-                    # Update the actor policy using the sampled gradient
-                    a_outs = self.actor.predict(s_batch)
-                    grads = self.critic.action_gradients(s_batch, a_outs)
-                    self.actor.train(s_batch, grads[0])
+            # Update the critic given the targets
+            predicted_q_value, delta = critic.train(s_batch, a_batch, y_i, weights)
 
-                    # Update target networks
-                    self.actor.update_target_network()
-                    self.critic.update_target_network()
+            # Update the actor policy using the sampled gradient
+            a_outs = actor.predict(s_batch)
+            grads = critic.action_gradients(s_batch, a_outs)
+            actor.train(s_batch, grads[0])
 
-                    if use_prioritized_buffer:
-                        new_priorities = np.abs(delta) + 1e-6
-                        replay_buffer.update_priorities(batch_idxes, new_priorities)
+            # Update target networks
+            actor.update_target_network()
+            critic.update_target_network()
 
-                ep_reward += reward
-                previous_observation = observation
+            if replay_buffer_type == 'prioritized':
+                new_priorities = np.abs(delta) + eps
+                replay_buffer.update_priorities(batch_idxes, new_priorities)
 
-                global_step += 1
-
-                if done or j == self.config['max step'] - 1:
-                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
-                    break
-
-            if save_every_episode > 0 and i % (save_every_episode + 1) == 0:
-                self.save_checkpoint(checkpoint_path)
-
-        self.save_checkpoint(checkpoint_path)
-        print('Finish.')
-
-    def predict(self, observation):
-        """ predict the next action using actor model, only used in deploy.
-            Can be used in multiple environments.
-
-        Args:
-            observation: observation provided by the environment
-
-        Returns: action array with shape (batch_size, num_stocks + 1)
-        """
-        if self.obs_normalizer:
-            observation = self.obs_normalizer(observation)
-        action = self.actor.predict(observation)
-        if self.action_processor:
-            action = self.action_processor(action)
-        return action
-
-    def predict_single(self, observation):
-        """ Predict the action of a single observation
-
-        Args:
-            observation: (num_stocks + 1, window_length)
-
-        Returns: a single action array with shape (num_stocks + 1,)
-        """
-        if self.obs_normalizer:
-            observation = self.obs_normalizer(observation)
-        action = self.actor.predict(np.expand_dims(observation, axis=0)).squeeze(axis=0)
-        if self.action_processor:
-            action = self.action_processor(action)
-        return action
-
-    def save_checkpoint(self, checkpoint_path):
-        state = {
-            'actor': self.actor.gather_state_dict(),
-            'critic': self.critic.gather_state_dict()
-        }
-        torch.save(state, checkpoint_path)
-        print('Save checkpoint to {}'.format(checkpoint_path))
-
-    def load_checkpoint(self, checkpoint_path, all=True):
-        checkpoint = torch.load(checkpoint_path)
-        self.actor.scatter_state_dict(checkpoint['actor'], all)
-        self.critic.scatter_state_dict(checkpoint['critic'], all)
-        print('Load checkpoint from {}'.format(checkpoint_path))
+        if global_step % log_every_n_steps == 0:
+            episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+            last_one_hundred_episode_reward = episode_rewards[-100:]
+            mean_episode_reward = np.mean(last_one_hundred_episode_reward)
+            print('------------')
+            if checkpoint_path and mean_episode_reward > best_mean_episode_reward:
+                actor.save_checkpoint(checkpoint_path)
+            std_episode_reward = np.std(last_one_hundred_episode_reward)
+            best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
+            print("Timestep {}/{}".format(global_step, total_timesteps))
+            print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+            print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
+                                                         np.max(last_one_hundred_episode_reward)))
+            print("best mean reward {:.2f}".format(best_mean_episode_reward))
+            print("episodes %d" % len(episode_rewards))
