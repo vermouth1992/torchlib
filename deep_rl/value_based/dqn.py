@@ -30,7 +30,7 @@ class QNetwork(object):
             self.target_network.cuda()
             self.loss.cuda()
 
-    def train(self, inputs, actions, predicted_q_value, weights, grad_norm_clipping=10):
+    def train(self, transition_batch, weights, gamma, double_q, grad_norm_clipping=10):
         """ train the q network with one step
 
         Args:
@@ -41,10 +41,23 @@ class QNetwork(object):
         Returns: q_value from network
 
         """
-        actions = torch.from_numpy(actions).type(LongTensor)
-        inputs = torch.from_numpy(inputs).type(FloatTensor)
+        s_batch, a_batch, r_batch, s2_batch, t_batch = transition_batch
+        s2_batch = torch.from_numpy(s2_batch).type(FloatTensor)
+        t_batch = torch.from_numpy(t_batch).type(FloatTensor)
+        r_batch = torch.from_numpy(r_batch).type(FloatTensor)
+        target_q = self.compute_target_q_value(s2_batch)
+        if double_q:
+            q_action = torch.max(self.network.forward(s2_batch), dim=1)[1]
+            target_q = target_q.gather(1, q_action.unsqueeze(1)).squeeze()
+        else:
+            target_q = torch.max(target_q, dim=1)[0]
+
+        y_i = r_batch + gamma * target_q * (1 - t_batch)
+
+        actions = torch.from_numpy(a_batch).type(LongTensor)
+        inputs = torch.from_numpy(s_batch).type(FloatTensor)
         weights = torch.from_numpy(weights).type(FloatTensor)
-        predicted_q_value = torch.from_numpy(predicted_q_value).type(FloatTensor)
+        predicted_q_value = y_i.detach()
         if self.optimizer_scheduler:
             self.optimizer_scheduler.step()
         self.optimizer.zero_grad()
@@ -67,10 +80,8 @@ class QNetwork(object):
         return q_value.data.cpu().numpy()
 
     def compute_target_q_value(self, inputs):
-        inputs = torch.from_numpy(inputs).type(FloatTensor)
-        with torch.no_grad():
-            q_value = self.target_network(inputs)
-        return q_value.data.cpu().numpy()
+        q_value = self.target_network(inputs)
+        return q_value
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.network.state_dict())
@@ -112,9 +123,9 @@ def test(env, q_network, num_episode=100, frame_history_len=1, seed=1996):
     print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
 
 
-def train(env, q_network, exploration, total_timesteps, replay_buffer_type='normal', replay_buffer_config=None,
-          batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, double_q=True, seed=1996,
-          log_every_n_steps=10000, target_update_freq=3000, checkpoint_path=None):
+def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_type='normal',
+          replay_buffer_config=None, batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, double_q=True,
+          seed=1996, log_every_n_steps=10000, target_update_freq=3000, grad_norm_clipping=10, checkpoint_path=None):
     q_network.update_target_network()
     set_global_seeds(seed)
     env.seed(seed)
@@ -192,22 +203,16 @@ def train(env, q_network, exploration, total_timesteps, replay_buffer_type='norm
         if global_step % learning_freq == 0:
             if replay_buffer_type == 'normal' or replay_buffer_type == 'frame':
                 s_batch, a_batch, r_batch, s2_batch, t_batch = replay_buffer.sample(batch_size)
+                transition_batch = (s_batch, a_batch, r_batch, s2_batch, t_batch)
                 weights = np.ones_like(r_batch)
             elif replay_buffer_type == 'prioritized':
                 experience = replay_buffer.sample(batch_size, beta=beta_schedule.value(global_step))
                 (s_batch, a_batch, r_batch, s2_batch, t_batch, weights, batch_idxes) = experience
+                transition_batch = (s_batch, a_batch, r_batch, s2_batch, t_batch)
             else:
                 raise NotImplementedError
 
-            target_q = q_network.compute_target_q_value(s2_batch)
-            if double_q:
-                q_action = np.argmax(q_network.compute_q_value(s2_batch), axis=1)
-                target_q = target_q[np.arange(batch_size), q_action]
-            else:
-                target_q = np.max(target_q, axis=1)
-            y_i = r_batch + gamma * target_q * (1 - t_batch)
-
-            predicted_q_value, delta = q_network.train(s_batch, a_batch, y_i, weights)
+            predicted_q_value, delta = q_network.train(transition_batch, weights, gamma, double_q, grad_norm_clipping)
 
             if replay_buffer_type == 'prioritized':
                 new_priorities = np.abs(delta) + eps
