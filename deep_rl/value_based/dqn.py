@@ -107,11 +107,13 @@ def test(env, q_network, num_episode=100, frame_history_len=1, seed=1996):
         previous_observation = env.reset()
         observation_lst.append(previous_observation)
         for _ in range(frame_history_len - 1):
+            env.render()
             action = env.action_space.sample()
             previous_observation, reward, done, _ = env.step(action)
             observation_lst.append(previous_observation)
             episode_reward += reward
         while not done:
+            env.render()
             action = q_network.predict_action(np.expand_dims(np.concatenate(observation_lst, axis=-1), axis=0))[0]
             previous_observation, reward, done, _ = env.step(action)
             episode_reward += reward
