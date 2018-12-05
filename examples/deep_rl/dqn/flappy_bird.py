@@ -2,14 +2,11 @@
 Train DQN to play flappy bird
 """
 
-"""
-Training DQN on Atari games
-"""
-
 import os
 import pprint
 
 import cv2
+import gym_ple
 import gym
 import numpy as np
 import torch
