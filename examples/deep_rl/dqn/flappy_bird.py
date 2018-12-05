@@ -6,8 +6,8 @@ import os
 import pprint
 
 import cv2
-import gym_ple
 import gym
+import gym_ple
 import numpy as np
 import torch
 import torch.nn as nn
@@ -113,8 +113,6 @@ class DuelQModule(nn.Module):
 def make_parser():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default='vpg')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--n_iter', '-n', type=int, default=100000)
     parser.add_argument('--batch_size', '-b', type=int, default=32)
@@ -138,8 +136,8 @@ if __name__ == '__main__':
     pprint.pprint(args)
 
     # parameters
-    env_name = args['env_name']
-    env = gym.make(env_name)
+    env_name = 'FlappyBird-v0'
+    env = gym_ple.make(env_name)
 
     expt_dir = '/tmp/{}'.format(env_name)
     env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
