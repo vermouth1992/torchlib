@@ -77,6 +77,7 @@ def make_parser():
     parser.add_argument('--target_update_freq', type=int, default=5000)
     parser.add_argument('--seed', type=int, default=200)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--render', action='store_true')
     return parser
 
 
@@ -128,11 +129,8 @@ if __name__ == '__main__':
     checkpoint_path = 'checkpoint/{}.ckpt'.format(env_name)
 
     if args['test']:
-        try:
-            q_network.load_checkpoint(checkpoint_path)
-            dqn.test(env, q_network, frame_history_len=frame_history_len, seed=args['seed'])
-        except:
-            print("Can't find checkpoint. Abort")
+        q_network.load_checkpoint(checkpoint_path)
+        dqn.test(env, q_network, frame_history_len=frame_history_len, render=args['render'], seed=args['seed'])
 
     else:
 
