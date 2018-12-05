@@ -23,8 +23,8 @@ from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_rel
 def _process_frame_flappy_bird(frame):
     img = np.reshape(frame, [512, 288, 3]).astype(np.float32)
     img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
-    resized_screen = cv2.resize(img, (84, 149), interpolation=cv2.INTER_LINEAR)
-    x_t = resized_screen[10:94, :]
+    resized_screen = cv2.resize(img, (84, 100), interpolation=cv2.INTER_LINEAR)
+    x_t = resized_screen[0:84, :]
     x_t = np.reshape(x_t, [84, 84, 1])
     return x_t.astype(np.uint8)
 
@@ -61,7 +61,7 @@ class ProcessFrameFlappyBird(gym.Wrapper):
 
 def wrap_flappybird(env):
     env = FlappyBirdNoopResetEnv(env, noop_max=4)
-    env = MaxAndSkipEnv(env, skip=4)
+    env = MaxAndSkipEnv(env, skip=2)
     env = ProcessFrameFlappyBird(env)
     env = ClippedRewardsWrapper(env)
     return env
@@ -157,8 +157,8 @@ if __name__ == '__main__':
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
-            (1e5, 0.01),
-            (2e5, 0.005),
+            (5e4, 0.01),
+            (1e5, 0.005),
             (1e6, 0.001)
         ], outside_value=0.001
     )
