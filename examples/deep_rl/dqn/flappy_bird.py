@@ -9,16 +9,65 @@ Training DQN on Atari games
 import os
 import pprint
 
-import gym_ple
+import cv2
 import gym
+import numpy as np
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
+from gym import spaces
 from gym import wrappers
-from torchlib.deep_rl.utils.atari_wrappers import wrap_flappybird
+from torchlib.deep_rl.utils.atari_wrappers import MaxAndSkipEnv, ClippedRewardsWrapper
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
+
+
+def _process_frame_flappy_bird(frame):
+    img = np.reshape(frame, [512, 288, 3]).astype(np.float32)
+    img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
+    resized_screen = cv2.resize(img, (84, 149), interpolation=cv2.INTER_LINEAR)
+    x_t = resized_screen[0:84, :]
+    x_t = np.reshape(x_t, [84, 84, 1])
+    return x_t.astype(np.uint8)
+
+
+class FlappyBirdNoopResetEnv(gym.Wrapper):
+    def __init__(self, env=None, noop_max=10):
+        """Sample initial states by taking random number of no-ops on reset.
+        No-op is assumed to be action 0.
+        """
+        super(FlappyBirdNoopResetEnv, self).__init__(env)
+        self.noop_max = noop_max
+
+    def _reset(self):
+        """ Do no-op action for a number of steps in [1, noop_max]."""
+        obs = self.env.reset()
+        noops = np.random.randint(1, self.noop_max + 1)
+        for _ in range(noops):
+            obs, _, _, _ = self.env.step(self.env.action_space.sample())
+        return obs
+
+
+class ProcessFrameFlappyBird(gym.Wrapper):
+    def __init__(self, env=None):
+        super(ProcessFrameFlappyBird, self).__init__(env)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1))
+
+    def _step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        return _process_frame_flappy_bird(obs), reward, done, info
+
+    def _reset(self):
+        return _process_frame_flappy_bird(self.env.reset())
+
+
+def wrap_flappybird(env):
+    env = FlappyBirdNoopResetEnv(env, noop_max=10)
+    env = MaxAndSkipEnv(env, skip=4)
+    env = ProcessFrameFlappyBird(env)
+    env = ClippedRewardsWrapper(env)
+    return env
 
 
 class QModule(nn.Module):
@@ -113,7 +162,8 @@ if __name__ == '__main__':
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
-            (1e5, 0.02),
+            (1e5, 0.1),
+            (1e6, 0.02)
         ], outside_value=0.02
     )
 

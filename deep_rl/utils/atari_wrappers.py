@@ -162,35 +162,6 @@ def wrap_deepmind(env):
     return env
 
 
-def _process_frame_flappy_bird(frame):
-    img = np.reshape(frame, [512, 288, 3]).astype(np.float32)
-    img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
-    resized_screen = cv2.resize(img, (84, 149), interpolation=cv2.INTER_LINEAR)
-    x_t = resized_screen[32:116, :]
-    x_t = np.reshape(x_t, [84, 84, 1])
-    return x_t.astype(np.uint8)
-
-
-class ProcessFrameFlappyBird(gym.Wrapper):
-    def __init__(self, env=None):
-        super(ProcessFrameFlappyBird, self).__init__(env)
-        self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1))
-
-    def _step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        return _process_frame_flappy_bird(obs), reward, done, info
-
-    def _reset(self):
-        return _process_frame_flappy_bird(self.env.reset())
-
-
-def wrap_flappybird(env):
-    env = MaxAndSkipEnv(env, skip=4)
-    env = ProcessFrameFlappyBird(env)
-    env = ClippedRewardsWrapper(env)
-    return env
-
-
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:

@@ -126,6 +126,8 @@ def test(env, q_network, num_episode=100, frame_history_len=1, render=False, see
     print('Reward range [{}, {}]'.format(np.min(reward_lst), np.max(reward_lst)))
     print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
 
+    env.close()
+
 
 def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_type='normal',
           replay_buffer_config=None, batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, double_q=True,
@@ -243,3 +245,5 @@ def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_
             print("best mean reward {:.2f}".format(best_mean_episode_reward))
             print("episodes %d" % len(episode_rewards))
             print("exploration %f" % exploration.value(global_step))
+
+    env.close()
