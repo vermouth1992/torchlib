@@ -9,6 +9,7 @@ Training DQN on Atari games
 import os
 import pprint
 
+import gym_ple
 import gym
 import torch
 import torch.nn as nn

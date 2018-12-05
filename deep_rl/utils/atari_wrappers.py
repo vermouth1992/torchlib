@@ -185,11 +185,7 @@ class ProcessFrameFlappyBird(gym.Wrapper):
 
 
 def wrap_flappybird(env):
-    env = EpisodicLifeEnv(env)
-    env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    if 'FIRE' in env.unwrapped.get_action_meanings():
-        env = FireResetEnv(env)
     env = ProcessFrameFlappyBird(env)
     env = ClippedRewardsWrapper(env)
     return env
