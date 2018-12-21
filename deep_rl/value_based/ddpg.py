@@ -5,9 +5,8 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torchlib.common import FloatTensor, enable_cuda, eps
-from torchlib.deep_rl.utils.atari_wrappers import get_wrapper_by_name
-from torchlib.deep_rl.utils.replay.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame
-from torchlib.deep_rl.utils.schedules import LinearSchedule
+from torchlib.deep_rl.utils import get_wrapper_by_name, ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, \
+    LinearSchedule
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 
