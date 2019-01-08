@@ -47,12 +47,12 @@ class ActorNetwork(object):
 
     def save_checkpoint(self, checkpoint_path):
         torch.save(self.actor_network.state_dict(), checkpoint_path)
-        print('Save checkpoint to {}'.format(checkpoint_path))
+        print('Save ddpg actor checkpoint to {}'.format(checkpoint_path))
 
     def load_checkpoint(self, checkpoint_path):
         state_dict = torch.load(checkpoint_path)
         self.actor_network.load_state_dict(state_dict)
-        print('Load checkpoint from {}'.format(checkpoint_path))
+        print('Load ddpg actor checkpoint from {}'.format(checkpoint_path))
 
 
 class CriticNetwork(object):
@@ -110,6 +110,15 @@ class CriticNetwork(object):
                 target_param.data * (1.0 - self.tau) + param.data * self.tau
             )
 
+    def save_checkpoint(self, checkpoint_path):
+        torch.save(self.critic_network.state_dict(), checkpoint_path)
+        print('Save ddpg critic checkpoint to {}'.format(checkpoint_path))
+
+    def load_checkpoint(self, checkpoint_path):
+        state_dict = torch.load(checkpoint_path)
+        self.critic_network.load_state_dict(state_dict)
+        print('Load ddpg critic checkpoint from {}'.format(checkpoint_path))
+
 
 def test(env, actor, num_episode=100, seed=1996):
     set_global_seeds(seed)
@@ -131,7 +140,7 @@ def test(env, actor, num_episode=100, seed=1996):
 
 def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='normal', replay_buffer_config=None,
           batch_size=64, gamma=0.99, learn_starts=64, learning_freq=4, seed=1996, log_every_n_steps=10000,
-          checkpoint_path=None):
+          actor_checkpoint_path=None, critic_checkpoint_path=None):
     actor.update_target_network()
     critic.update_target_network()
 
@@ -235,8 +244,12 @@ def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='
             last_one_hundred_episode_reward = episode_rewards[-100:]
             mean_episode_reward = np.mean(last_one_hundred_episode_reward)
             print('------------')
-            if checkpoint_path and mean_episode_reward > best_mean_episode_reward:
-                actor.save_checkpoint(checkpoint_path)
+            if mean_episode_reward > best_mean_episode_reward:
+                if actor_checkpoint_path:
+                    actor.save_checkpoint(actor_checkpoint_path)
+                if critic_checkpoint_path:
+                    critic.save_checkpoint(critic_checkpoint_path)
+
             std_episode_reward = np.std(last_one_hundred_episode_reward)
             best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
             print("Timestep {}/{}".format(global_step, total_timesteps))
