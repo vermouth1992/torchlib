@@ -13,9 +13,10 @@ from torchlib.common import FloatTensor, LongTensor, enable_cuda, eps
 from torchlib.deep_rl.utils import get_wrapper_by_name, ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, \
     LinearSchedule, Schedule
 from torchlib.utils.random.torch_random_utils import set_global_seeds
+from torchlib.deep_rl import BaseAgent
 
 
-class QNetwork(object):
+class QNetwork(BaseAgent):
     def __init__(self, network: nn.Module, optimizer: torch.optim.Optimizer, optimizer_scheduler=None, tau=1e-3):
         self.network = network
         self.target_network = copy.deepcopy(network)
@@ -69,7 +70,7 @@ class QNetwork(object):
         delta = (predicted_q_value - q_value).data.cpu().numpy()
         return q_value.data.cpu().numpy(), delta
 
-    def predict_action(self, inputs):
+    def predict(self, inputs):
         return np.argmax(self.compute_q_value(inputs), axis=1)
 
     def compute_q_value(self, inputs):
@@ -93,39 +94,6 @@ class QNetwork(object):
         state_dict = torch.load(checkpoint_path, map_location='cpu')
         self.network.load_state_dict(state_dict)
         print('Load checkpoint from {}'.format(checkpoint_path))
-
-
-def test(env, q_network, num_episode=100, frame_history_len=1, render=False, seed=1996):
-    set_global_seeds(seed)
-    env.seed(seed)
-    reward_lst = []
-    for i in range(num_episode):
-        observation_lst = []
-        done = False
-        episode_reward = 0
-        previous_observation = env.reset()
-        observation_lst.append(previous_observation)
-        for _ in range(frame_history_len - 1):
-            if render:
-                env.render()
-            action = env.action_space.sample()
-            previous_observation, reward, done, _ = env.step(action)
-            observation_lst.append(previous_observation)
-            episode_reward += reward
-        while not done:
-            if render:
-                env.render()
-            action = q_network.predict_action(np.expand_dims(np.concatenate(observation_lst, axis=-1), axis=0))[0]
-            previous_observation, reward, done, _ = env.step(action)
-            episode_reward += reward
-            observation_lst.pop(0)
-            observation_lst.append(previous_observation)
-        print('Episode: {}. Reward: {}'.format(i, episode_reward))
-        reward_lst.append(episode_reward)
-    print('Reward range [{}, {}]'.format(np.min(reward_lst), np.max(reward_lst)))
-    print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
-
-    env.close()
 
 
 def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_type='normal',
@@ -182,10 +150,10 @@ def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_
                 action = env.action_space.sample()
             else:
                 if replay_buffer_type == 'frame':
-                    action = q_network.predict_action(
+                    action = q_network.predict(
                         np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
                 else:
-                    action = q_network.predict_action(np.expand_dims(previous_observation, axis=0))[0]
+                    action = q_network.predict(np.expand_dims(previous_observation, axis=0))[0]
 
         elif exploration == 'param_noise':
             raise NotImplementedError

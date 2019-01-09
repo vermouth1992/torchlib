@@ -18,9 +18,10 @@ from tensorboardX import SummaryWriter
 from torch.distributions import Categorical, MultivariateNormal
 from torchlib.common import FloatTensor, eps
 from torchlib.utils.random.torch_random_utils import set_global_seeds
+from torchlib.deep_rl import BaseAgent
 
 
-class Agent(object):
+class Agent(BaseAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline=None,
                  nn_baseline_optimizer=None):
         super(Agent, self).__init__()
@@ -43,7 +44,7 @@ class Agent(object):
             mean = torch.squeeze(mean, 0)
             return MultivariateNormal(mean, torch.exp(logstd))
 
-    def sample_action(self, state):
+    def predict(self, state):
         """ Run the forward path of policy_network without gradient.
 
         Args:
@@ -65,11 +66,11 @@ class Agent(object):
             state = torch.from_numpy(state).type(FloatTensor)
             if self.discrete:
                 prob = self.policy_net.forward(state)
-                return Categorical(prob).sample(batch_size)
+                return Categorical(prob).sample(torch.Size([batch_size])).cpu().numpy()
             else:
                 mean, logstd = self.policy_net.forward(state)
                 mean = torch.squeeze(mean, 0)
-                return MultivariateNormal(mean, torch.exp(logstd)).sample(batch_size)
+                return MultivariateNormal(mean, torch.exp(logstd)).sample(torch.Size([batch_size])).cpu().numpy()
 
     def update_policy(self, observation, log_prob, rewards, num_trajectories):
         """ Update policy

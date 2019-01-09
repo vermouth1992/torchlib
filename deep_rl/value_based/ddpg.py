@@ -8,9 +8,9 @@ from torchlib.common import FloatTensor, enable_cuda, eps
 from torchlib.deep_rl.utils import get_wrapper_by_name, ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, \
     LinearSchedule
 from torchlib.utils.random.torch_random_utils import set_global_seeds
+from torchlib.deep_rl import BaseAgent
 
-
-class ActorNetwork(object):
+class ActorNetwork(BaseAgent):
     def __init__(self, actor, optimizer, tau):
         self.tau = tau
         self.optimizer = optimizer
@@ -118,24 +118,6 @@ class CriticNetwork(object):
         state_dict = torch.load(checkpoint_path)
         self.critic_network.load_state_dict(state_dict)
         print('Load ddpg critic checkpoint from {}'.format(checkpoint_path))
-
-
-def test(env, actor, num_episode=100, seed=1996):
-    set_global_seeds(seed)
-    env.seed(seed)
-    reward_lst = []
-    for i in range(num_episode):
-        previous_observation = env.reset()
-        done = False
-        episode_reward = 0
-        while not done:
-            action = actor.predict(np.expand_dims(previous_observation, axis=0))[0]
-            previous_observation, reward, done, _ = env.step(action)
-            episode_reward += reward
-        print('Episode: {}. Reward: {}'.format(i, episode_reward))
-        reward_lst.append(episode_reward)
-    print('Reward range [{}, {}]'.format(np.min(reward_lst), np.max(reward_lst)))
-    print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
 
 
 def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='normal', replay_buffer_config=None,
