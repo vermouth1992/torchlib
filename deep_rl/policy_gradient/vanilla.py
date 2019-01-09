@@ -40,6 +40,7 @@ class Agent(object):
             return Categorical(probs=probs)
         else:
             mean, logstd = self.policy_net.forward(state)
+            mean = torch.squeeze(mean, 0)
             return MultivariateNormal(mean, torch.exp(logstd))
 
     def sample_action(self, state):
@@ -67,6 +68,7 @@ class Agent(object):
                 return Categorical(prob).sample(batch_size)
             else:
                 mean, logstd = self.policy_net.forward(state)
+                mean = torch.squeeze(mean, 0)
                 return MultivariateNormal(mean, torch.exp(logstd)).sample(batch_size)
 
     def update_policy(self, observation, log_prob, rewards, num_trajectories):
@@ -144,7 +146,7 @@ def sample_trajectory(agent, env, max_path_length):
     log_prob, rewards, obs = [], [], []
     steps = 0
     while True:
-        distribution = agent.get_action_distribution(np.array(ob))
+        distribution = agent.get_action_distribution(np.array([ob]))
         # ac and log_prob are nodes on computational graph
         ac = distribution.sample(torch.Size([1]))
         log_prob.append(distribution.log_prob(ac))
