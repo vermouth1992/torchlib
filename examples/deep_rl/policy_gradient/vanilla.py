@@ -6,6 +6,7 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 import gym.spaces
 import torch
 import torch.nn as nn
+import torchlib.deep_rl
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torchlib.common import FloatTensor, enable_cuda
 from torchlib.deep_rl.policy_gradient.vanilla import Agent
