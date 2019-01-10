@@ -6,10 +6,12 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 import gym.spaces
 import torch
 import torch.nn as nn
-import torchlib.deep_rl
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
+from torchlib import deep_rl
 from torchlib.common import FloatTensor, enable_cuda
 from torchlib.deep_rl.policy_gradient.vanilla import Agent
+
+__all__ = ['deep_rl']
 
 
 class PolicyDiscrete(nn.Module):
@@ -68,6 +70,7 @@ def make_parser():
     parser.add_argument('env_name', type=str)
     parser.add_argument('--exp_name', type=str, default='vpg')
     parser.add_argument('--discount', type=float, default=1.0)
+    parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
@@ -111,13 +114,15 @@ if __name__ == '__main__':
     if args.nn_baseline:
         baseline_net = Baseline(args.nn_size, ob_dim)
         baseline_optimizer = torch.optim.Adam(baseline_net.parameters(), args.learning_rate)
+        gae_lambda = args.gae_lambda
         if enable_cuda:
             baseline_net.cuda()
     else:
         baseline_net = None
         baseline_optimizer = None
+        gae_lambda = None
 
-    agent = Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer)
+    agent = Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer, gae_lambda)
 
     vanilla_pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-                     logdir='runs', seed=args.seed)
+                     logdir=None, seed=args.seed)

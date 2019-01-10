@@ -17,13 +17,14 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.distributions import Categorical, MultivariateNormal
 from torchlib.common import FloatTensor, eps
-from torchlib.utils.random.torch_random_utils import set_global_seeds
 from torchlib.deep_rl import BaseAgent
+from torchlib.deep_rl.utils import discount
+from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 
 class Agent(BaseAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline=None,
-                 nn_baseline_optimizer=None):
+                 nn_baseline_optimizer=None, lam=None):
         super(Agent, self).__init__()
         self.policy_net = policy_net
         self.policy_optimizer = policy_optimizer
@@ -33,12 +34,14 @@ class Agent(BaseAgent):
             assert nn_baseline_optimizer is not None, "nn_baseline_optimizer can' be None"
         self.nn_baseline_optimizer = nn_baseline_optimizer
         self.discrete = discrete
+        self.lam = lam
 
     def get_action_distribution(self, state):
         state = torch.from_numpy(state).type(FloatTensor)
         if self.discrete:
-            probs = self.policy_net.forward(state)
-            return Categorical(probs=probs)
+            prob = self.policy_net.forward(state)
+            prob = torch.squeeze(prob, 0)
+            return Categorical(probs=prob)
         else:
             mean, logstd = self.policy_net.forward(state)
             mean = torch.squeeze(mean, 0)
@@ -66,13 +69,25 @@ class Agent(BaseAgent):
             state = torch.from_numpy(state).type(FloatTensor)
             if self.discrete:
                 prob = self.policy_net.forward(state)
+                prob = torch.squeeze(prob, 0)
                 return Categorical(prob).sample(torch.Size([batch_size])).cpu().numpy()
             else:
                 mean, logstd = self.policy_net.forward(state)
                 mean = torch.squeeze(mean, 0)
                 return MultivariateNormal(mean, torch.exp(logstd)).sample(torch.Size([batch_size])).cpu().numpy()
 
-    def update_policy(self, observation, log_prob, rewards, num_trajectories):
+    def update_baseline(self, observation, rewards):
+        # update baseline
+        if self.nn_baseline:
+            self.nn_baseline_optimizer.zero_grad()
+            raw_baseline = self.nn_baseline.forward(observation)
+            rewards = (rewards - np.mean(rewards)) / (np.std(rewards) + eps)
+            rewards = torch.tensor(rewards).type(FloatTensor)
+            loss = self.baseline_loss(raw_baseline, rewards)
+            loss.backward()
+            self.nn_baseline_optimizer.step()
+
+    def update_policy(self, paths, gamma):
         """ Update policy
 
         Args:
@@ -81,23 +96,18 @@ class Agent(BaseAgent):
         Returns:
 
         """
+        rewards = compute_sum_of_rewards(paths, gamma)
+        observation = torch.from_numpy(np.concatenate([path["observation"] for path in paths])).type(FloatTensor)
         if self.nn_baseline:
-            raw_baseline = self.nn_baseline.forward(observation)
-
-            # we assume baseline data has mean of 0 and std of 1.
-            raw_baseline_data = raw_baseline.detach().cpu().numpy()
-            raw_baseline_data = raw_baseline_data * np.std(rewards) + np.mean(rewards)
-            advantage = rewards - raw_baseline_data
-
-            # update nn baseline
-            self.nn_baseline_optimizer.zero_grad()
-            rewards = (rewards - np.mean(rewards)) / (np.std(rewards) + eps)
-            rewards = torch.tensor(rewards).type(FloatTensor)
-            loss = self.baseline_loss(raw_baseline, rewards)
-            loss.backward()
-            self.nn_baseline_optimizer.step()
+            advantage = compute_gae(paths, gamma, self.nn_baseline, self.lam, np.mean(rewards), np.std(rewards))
+            self.update_baseline(observation, rewards)
         else:
             advantage = rewards
+
+        # reshape all episodes to a single large batch
+        log_prob = []
+        for path in paths:
+            log_prob.extend(path['log_prob'])
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
@@ -111,7 +121,7 @@ class Agent(BaseAgent):
 
         # update policy network
         self.policy_optimizer.zero_grad()
-        policy_loss = torch.stack(policy_loss).sum() / num_trajectories
+        policy_loss = torch.stack(policy_loss).sum() / len(paths)
         policy_loss.backward()
         self.policy_optimizer.step()
 
@@ -151,15 +161,25 @@ def compute_sum_of_rewards(paths, gamma):
     # calculate sum of reward
     rewards = []
     for path in paths:
-        current_rewards = []
         # calculate reward-to-go
-        R = 0
-        for r in path['reward'][::-1]:
-            R = r + gamma * R
-            current_rewards.insert(0, R)
+        current_rewards = discount(path['reward'], gamma).tolist()
         rewards.extend(current_rewards)
     rewards = np.array(rewards)
     return rewards
+
+
+def compute_gae(paths, gamma, nn_baseline, lam, mean, std):
+    gaes = []
+    for path in paths:
+        with torch.no_grad():
+            values = nn_baseline.forward(torch.from_numpy(path['observation']).type(FloatTensor)).cpu().numpy()
+        values = values * std + mean
+        temporal_difference = path['reward'] + np.append(values[1:] * gamma, 0) - values
+        # calculate reward-to-go
+        gae = discount(temporal_difference, gamma * lam).tolist()
+        gaes.extend(gae)
+    gaes = np.array(gaes)
+    return gaes
 
 
 def sample_trajectory(agent, env, max_path_length):
@@ -214,15 +234,8 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
     for itr in range(n_iter):
         paths, timesteps_this_batch = sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length)
 
-        observation = torch.from_numpy(np.concatenate([path["observation"] for path in paths])).type(FloatTensor)
-        log_prob = []
-        for path in paths:
-            log_prob.extend(path['log_prob'])
-
-        rewards = compute_sum_of_rewards(paths, gamma)
-
         total_timesteps += timesteps_this_batch
-        agent.update_policy(observation, log_prob, rewards, len(paths))
+        agent.update_policy(paths, gamma)
 
         # logger
         returns = [np.sum(path["reward"]) for path in paths]
