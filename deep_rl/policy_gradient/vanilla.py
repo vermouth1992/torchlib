@@ -109,19 +109,17 @@ class Agent(BaseAgent):
         for path in paths:
             log_prob.extend(path['log_prob'])
 
+        log_prob = torch.stack(log_prob).squeeze(-1)
+
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
         advantage = torch.from_numpy(advantage).type(FloatTensor)
-
-        policy_loss = []
         assert len(log_prob) == len(advantage), 'log_prob length {}, advantage length {}'.format(len(log_prob),
                                                                                                  len(advantage))
-        for i in range(len(log_prob)):
-            policy_loss.append(-log_prob[i] * advantage[i])
 
         # update policy network
         self.policy_optimizer.zero_grad()
-        policy_loss = torch.stack(policy_loss).sum() / len(paths)
+        policy_loss = torch.sum(-log_prob * advantage) / len(paths)
         policy_loss.backward()
         self.policy_optimizer.step()
 
