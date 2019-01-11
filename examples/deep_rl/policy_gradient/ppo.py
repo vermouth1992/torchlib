@@ -8,9 +8,10 @@ import pprint
 import gym.spaces
 import torch
 import torch.nn as nn
-import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
+import torchlib.deep_rl.policy_gradient.ppo as ppo
 from torchlib import deep_rl
 from torchlib.common import FloatTensor, enable_cuda
+from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 __all__ = ['deep_rl']
 
@@ -72,6 +73,8 @@ def make_parser():
     parser.add_argument('--exp_name', type=str, default='vpg')
     parser.add_argument('--discount', type=float, default=1.0)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
+    parser.add_argument('--clip_param', type=float, default=0.2)
+    parser.add_argument('--entropy_coef', type=float, default=0.01)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
@@ -91,6 +94,8 @@ if __name__ == '__main__':
 
     if args.env_name.startswith('Roboschool'):
         pass
+
+    set_global_seeds(args.seed)
 
     env = gym.make(args.env_name)
 
@@ -125,7 +130,8 @@ if __name__ == '__main__':
         baseline_optimizer = None
         gae_lambda = None
 
-    agent = vanilla_pg.Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer, gae_lambda)
+    agent = ppo.Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer, gae_lambda,
+                      clip_param=args.clip_param, entropy_coef=args.entropy_coef)
 
-    vanilla_pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-                     logdir=None, seed=args.seed)
+    ppo.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
+              logdir=None, seed=args.seed)
