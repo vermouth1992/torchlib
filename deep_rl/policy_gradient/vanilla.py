@@ -61,9 +61,11 @@ class Agent(BaseAgent):
                 if continuous: (batch_size, self.ac_dim)
 
         """
+        state = np.expand_dims(state, axis=0)
         with torch.no_grad():
             state = torch.from_numpy(state).type(FloatTensor)
-            return self.get_action_distribution(state).sample(torch.Size([1])).cpu().numpy()
+            action = self.get_action_distribution(state).sample(torch.Size([])).cpu().numpy()
+            return action[0]
 
     def update_baseline(self, observation, rewards):
         # update baseline

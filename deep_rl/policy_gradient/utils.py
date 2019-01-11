@@ -53,7 +53,7 @@ def sample_trajectory(agent, env, max_path_length):
         # ac = distribution.sample(torch.Size([1]))
         #
         # log_prob.append(distribution.log_prob(ac))
-        ac = agent.predict(ob)[0]
+        ac = agent.predict(ob)
         actions.append(ac)
         obs.append(ob)
 
