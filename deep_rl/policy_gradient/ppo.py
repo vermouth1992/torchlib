@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torch.utils.data import TensorDataset, DataLoader
-from torchlib.common import eps, FloatTensor, enable_cuda
+from torchlib.common import eps, enable_cuda
 
 from .utils import compute_gae, compute_sum_of_rewards
 
@@ -35,15 +35,18 @@ class Agent(vanilla_pg.Agent):
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
-
         actions = torch.Tensor(actions)
-        advantage = torch.Tensor(advantage).type(FloatTensor)
+        advantage = torch.Tensor(advantage)
         rewards = torch.Tensor(rewards)
-        observation = torch.Tensor(observation).type(FloatTensor)
+        observation = torch.Tensor(observation)
 
         with torch.no_grad():
-            old_distribution = self.get_action_distribution(observation)
-            old_log_prob = old_distribution.log_prob(actions).cpu()
+            if enable_cuda:
+                old_distribution = self.get_action_distribution(observation.cuda())
+                old_log_prob = old_distribution.log_prob(actions.cuda()).cpu()
+            else:
+                old_distribution = self.get_action_distribution(observation)
+                old_log_prob = old_distribution.log_prob(actions).cpu()
 
         return actions, advantage, observation, rewards, old_log_prob
 
@@ -60,6 +63,13 @@ class Agent(vanilla_pg.Agent):
         for _ in range(epoch):
             for batch_sample in data_loader:
                 observation, action, old_log_prob, discount_rewards, advantage = batch_sample
+                if enable_cuda:
+                    observation = observation.cuda()
+                    action = action.cuda()
+                    old_log_prob = old_log_prob.cuda()
+                    discount_rewards = discount_rewards.cuda()
+                    advantage = advantage.cuda()
+
                 self.policy_optimizer.zero_grad()
                 # update policy
                 distribution = self.get_action_distribution(observation)

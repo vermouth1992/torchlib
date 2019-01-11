@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.distributions import Categorical, MultivariateNormal
-from torchlib.common import FloatTensor, eps
+from torchlib.common import FloatTensor, eps, enable_cuda
 from torchlib.deep_rl import BaseAgent
 
 from .utils import compute_gae, compute_sum_of_rewards, sample_trajectories, pathlength
@@ -108,6 +108,8 @@ class Agent(BaseAgent):
 
         observation = torch.tensor(observation).type(FloatTensor)
         actions = torch.tensor(actions)
+        if enable_cuda:
+            actions = actions.cuda()
         advantage = torch.tensor(advantage).type(FloatTensor)
         rewards = torch.tensor(rewards).type(FloatTensor)
 
