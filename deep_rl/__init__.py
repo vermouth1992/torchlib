@@ -42,7 +42,7 @@ def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=Fal
         while not done:
             if render:
                 env.render()
-            action = agent.predict(np.expand_dims(np.concatenate(observation_lst, axis=-1), axis=0))[0]
+            action = agent.predict(np.concatenate(observation_lst, axis=-1))
             previous_observation, reward, done, _ = env.step(action)
             episode_reward += reward
             observation_lst.pop(0)
