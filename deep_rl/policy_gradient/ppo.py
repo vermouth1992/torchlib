@@ -13,20 +13,16 @@ from .utils import compute_gae, compute_sum_of_rewards
 
 
 class Agent(vanilla_pg.Agent):
-    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline,
-                 nn_baseline_optimizer, lam=1., clip_param=0.2, entropy_coef=0.01):
-        super(Agent, self).__init__(policy_net, policy_optimizer, discrete, nn_baseline,
-                                    nn_baseline_optimizer, lam)
+    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, lam=1., clip_param=0.2, entropy_coef=0.01,
+                 value_coef=0.5):
+        super(Agent, self).__init__(policy_net, policy_optimizer, discrete, True, lam, value_coef)
         self.clip_param = clip_param
         self.entropy_coef = entropy_coef
 
     def construct_dataset(self, paths, gamma):
         rewards = compute_sum_of_rewards(paths, gamma)
         observation = np.concatenate([path["observation"] for path in paths])
-        if self.nn_baseline:
-            advantage = compute_gae(paths, gamma, self.nn_baseline, self.lam, np.mean(rewards), np.std(rewards))
-        else:
-            advantage = rewards
+        advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
 
         # reshape all episodes to a single large batch
         actions = []
@@ -86,12 +82,11 @@ class Agent(vanilla_pg.Agent):
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                loss = policy_loss - entropy_loss * self.entropy_coef
+                value_loss = self.get_baseline_loss(observation, discount_rewards)
+
+                loss = policy_loss - entropy_loss * self.entropy_coef + self.value_coef * value_loss
                 loss.backward()
                 self.policy_optimizer.step()
-
-                # update baseline
-                self.update_baseline(observation, discount_rewards)
 
 
 train = vanilla_pg.train

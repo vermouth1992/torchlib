@@ -24,46 +24,42 @@ class PolicyDiscrete(nn.Module):
             nn.Linear(state_dim, nn_size),
             nn.ReLU(),
             nn.Linear(nn_size, nn_size),
-            nn.ReLU(),
+            nn.ReLU()
+        )
+        self.action_head = nn.Sequential(
             nn.Linear(nn_size, action_dim),
             nn.Softmax(dim=-1)
         )
+        self.value_head = nn.Linear(nn_size, 1)
 
     def forward(self, state):
-        return self.model.forward(state)
+        x = self.model.forward(state)
+        action = self.action_head.forward(x)
+        value = self.value_head.forward(x)
+        return action, value.squeeze(-1)
 
 
 class PolicyContinuous(nn.Module):
     def __init__(self, nn_size, state_dim, action_dim):
         super(PolicyContinuous, self).__init__()
-        self.logstd = torch.randn([action_dim, action_dim], requires_grad=True).type(FloatTensor)
+        self.logstd = torch.nn.Parameter(torch.randn([action_dim, action_dim], requires_grad=True).type(FloatTensor))
         self.model = nn.Sequential(
             nn.Linear(state_dim, nn_size),
             nn.ReLU(),
             nn.Linear(nn_size, nn_size),
             nn.ReLU(),
+        )
+        self.action_head = nn.Sequential(
             nn.Linear(nn_size, action_dim),
             nn.Tanh()
         )
+        self.value_head = nn.Linear(nn_size, 1)
 
     def forward(self, state):
-        mean = self.model.forward(state)
-        return mean, self.logstd
-
-
-class Baseline(nn.Module):
-    def __init__(self, nn_size, state_dim):
-        super(Baseline, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(state_dim, nn_size),
-            nn.ReLU(),
-            nn.Linear(nn_size, nn_size),
-            nn.ReLU(),
-            nn.Linear(nn_size, 1),
-        )
-
-    def forward(self, state):
-        return self.model.forward(state).squeeze(dim=-1)
+        x = self.model.forward(state)
+        mean = self.action_head.forward(x)
+        value = self.value_head.forward(x)
+        return (mean, self.logstd), value.squeeze(-1)
 
 
 def make_parser():
@@ -75,11 +71,11 @@ def make_parser():
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.01)
+    parser.add_argument('--value_coef', type=float, default=0.5)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-    parser.add_argument('--nn_baseline', '-bl', action='store_true')
     parser.add_argument('--nn_size', '-s', type=int, default=64)
     parser.add_argument('--seed', type=int, default=1)
     return parser
@@ -119,19 +115,10 @@ if __name__ == '__main__':
 
     policy_optimizer = torch.optim.Adam(policy_net.parameters(), args.learning_rate)
 
-    if args.nn_baseline:
-        baseline_net = Baseline(args.nn_size, ob_dim)
-        baseline_optimizer = torch.optim.Adam(baseline_net.parameters(), args.learning_rate)
-        gae_lambda = args.gae_lambda
-        if enable_cuda:
-            baseline_net.cuda()
-    else:
-        baseline_net = None
-        baseline_optimizer = None
-        gae_lambda = None
+    gae_lambda = args.gae_lambda
 
-    agent = ppo.Agent(policy_net, policy_optimizer, discrete, baseline_net, baseline_optimizer, gae_lambda,
-                      clip_param=args.clip_param, entropy_coef=args.entropy_coef)
+    agent = ppo.Agent(policy_net, policy_optimizer, discrete, gae_lambda, clip_param=args.clip_param,
+                      entropy_coef=args.entropy_coef, value_coef=args.value_coef)
 
     ppo.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
               logdir=None, seed=args.seed)

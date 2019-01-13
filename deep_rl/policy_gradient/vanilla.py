@@ -23,25 +23,23 @@ from .utils import compute_gae, compute_sum_of_rewards, sample_trajectories, pat
 
 
 class Agent(BaseAgent):
-    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline=None,
-                 nn_baseline_optimizer=None, lam=None):
+    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline=True, lam=None,
+                 value_coef=0.5):
         super(Agent, self).__init__()
         self.policy_net = policy_net
         self.policy_optimizer = policy_optimizer
         self.nn_baseline = nn_baseline
-        self.baseline_loss = None if not self.nn_baseline else nn.MSELoss()
-        if self.nn_baseline:
-            assert nn_baseline_optimizer is not None, "nn_baseline_optimizer can' be None"
-        self.nn_baseline_optimizer = nn_baseline_optimizer
+        self.baseline_loss = None if not nn_baseline else nn.MSELoss()
         self.discrete = discrete
         self.lam = lam
+        self.value_coef = value_coef
 
     def get_action_distribution(self, state):
         if self.discrete:
-            prob = self.policy_net.forward(state)
+            prob = self.policy_net.forward(state)[0]
             return Categorical(probs=prob)
         else:
-            mean, logstd = self.policy_net.forward(state)
+            mean, logstd = self.policy_net.forward(state)[0]
             return MultivariateNormal(mean, torch.exp(logstd))
 
     def predict(self, state):
@@ -67,22 +65,19 @@ class Agent(BaseAgent):
             action = self.get_action_distribution(state).sample(torch.Size([])).cpu().numpy()
             return action[0]
 
-    def update_baseline(self, observation, rewards):
+    def get_baseline_loss(self, observation, rewards):
         # update baseline
-        if self.nn_baseline:
-            self.nn_baseline_optimizer.zero_grad()
-            raw_baseline = self.nn_baseline.forward(observation)
-            rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards) + eps)
-            rewards = rewards.type(FloatTensor)
-            loss = self.baseline_loss(raw_baseline, rewards)
-            loss.backward()
-            self.nn_baseline_optimizer.step()
+        raw_baseline = self.policy_net.forward(observation)[1]
+        rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards) + eps)
+        rewards = rewards.type(FloatTensor)
+        loss = self.baseline_loss(raw_baseline, rewards)
+        return loss
 
     def construct_dataset(self, paths, gamma):
         rewards = compute_sum_of_rewards(paths, gamma)
         observation = np.concatenate([path["observation"] for path in paths])
         if self.nn_baseline:
-            advantage = compute_gae(paths, gamma, self.nn_baseline, self.lam, np.mean(rewards), np.std(rewards))
+            advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
         else:
             advantage = rewards
 
@@ -106,16 +101,14 @@ class Agent(BaseAgent):
         """
         actions, advantage, observation, rewards = dataset
 
-        observation = torch.tensor(observation).type(FloatTensor)
-        actions = torch.tensor(actions)
+        observation = torch.Tensor(observation).type(FloatTensor)
+        actions = torch.Tensor(actions)
         if enable_cuda:
             actions = actions.cuda()
-        advantage = torch.tensor(advantage).type(FloatTensor)
-        rewards = torch.tensor(rewards).type(FloatTensor)
+        advantage = torch.Tensor(advantage).type(FloatTensor)
+        rewards = torch.Tensor(rewards).type(FloatTensor)
 
         for _ in range(epoch):
-            self.update_baseline(observation, rewards)
-
             # update policy network
             self.policy_optimizer.zero_grad()
             # compute log prob
@@ -125,8 +118,14 @@ class Agent(BaseAgent):
             assert log_prob.shape == advantage.shape, 'log_prob length {}, advantage length {}'.format(log_prob.shape,
                                                                                                        advantage.shape)
 
-            policy_loss = torch.mean(-log_prob * advantage)
-            policy_loss.backward()
+            action_loss = torch.mean(-log_prob * advantage)
+            loss = action_loss
+
+            if self.nn_baseline:
+                value_loss = self.get_baseline_loss(observation, rewards)
+                loss = loss + value_loss * self.value_coef
+
+            loss.backward()
             self.policy_optimizer.step()
 
     def save_checkpoint(self, checkpoint_path, save_baseline=False):

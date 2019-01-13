@@ -28,11 +28,11 @@ def compute_sum_of_rewards(paths, gamma):
     return rewards
 
 
-def compute_gae(paths, gamma, nn_baseline, lam, mean, std):
+def compute_gae(paths, gamma, policy_net, lam, mean, std):
     gaes = []
     for path in paths:
         with torch.no_grad():
-            values = nn_baseline.forward(torch.from_numpy(path['observation']).type(FloatTensor)).cpu().numpy()
+            values = policy_net.forward(torch.from_numpy(path['observation']).type(FloatTensor))[1].cpu().numpy()
         values = values * std + mean
         temporal_difference = path['reward'] + np.append(values[1:] * gamma, 0) - values
         # calculate reward-to-go
