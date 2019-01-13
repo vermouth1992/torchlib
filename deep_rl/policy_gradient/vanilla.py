@@ -128,17 +128,12 @@ class Agent(BaseAgent):
             loss.backward()
             self.policy_optimizer.step()
 
-    def save_checkpoint(self, checkpoint_path, save_baseline=False):
-        save_dict = {'policy': self.policy_net.state_dict()}
-        if save_baseline:
-            save_dict['baseline'] = self.baseline_loss.state_dict()
-        torch.save(save_dict, checkpoint_path)
+    def save_checkpoint(self, checkpoint_path):
+        torch.save(self.policy_net.state_dict(), checkpoint_path)
 
     def load_checkpoint(self, checkpoint_path):
         state_dict = torch.load(checkpoint_path)
-        self.policy_net.load_state_dict(state_dict['policy'])
-        if 'baseline' in state_dict:
-            self.nn_baseline.load_state_dict(state_dict['baseline'])
+        self.policy_net.load_state_dict(state_dict)
 
     def predict_state_value(self, state):
         """ compute the state value using nn baseline
@@ -157,7 +152,7 @@ class Agent(BaseAgent):
 
 
 def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_path_length,
-          logdir=None, seed=1996, checkpoint_path=None, save_baseline=False):
+          logdir=None, seed=1996, checkpoint_path=None):
     # Set random seeds
     env.seed(seed)
     # Maximum length for episodes
@@ -191,7 +186,7 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         if best_avg_return is None or avg_return > best_avg_return:
             best_avg_return = avg_return
             if checkpoint_path:
-                agent.save_checkpoint(checkpoint_path=checkpoint_path, save_baseline=save_baseline)
+                agent.save_checkpoint(checkpoint_path=checkpoint_path)
 
         if writer:
             writer.add_scalars('data/return', {'avg': avg_return,
