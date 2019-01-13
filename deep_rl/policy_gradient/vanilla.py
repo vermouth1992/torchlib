@@ -141,14 +141,14 @@ class Agent(BaseAgent):
         Args:
             state: (batch_size, ob_dim)
 
-        Returns: (batch_size, 1)
+        Returns: (batch_size,)
 
         """
         if not self.nn_baseline:
             raise ValueError('Baseline function is not defined')
         else:
             with torch.no_grad():
-                return self.nn_baseline.forward(state).cpu().numpy()
+                return self.policy_net.forward(state)[1].cpu().numpy()
 
 
 def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_path_length,
