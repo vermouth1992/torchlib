@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchlib.deep_rl.value_based.dqn as dqn
 from gym import wrappers
+from torchlib import deep_rl
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
 
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     if args['test']:
         try:
             q_network.load_checkpoint(checkpoint_path)
-            dqn.test(env, q_network, seed=args['seed'])
+            deep_rl.test(env, q_network, seed=args['seed'])
         except:
             print("Can't find checkpoint. Abort")
 

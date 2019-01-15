@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchlib.deep_rl.value_based.ddpg as ddpg
 from gym import wrappers
+from torchlib import deep_rl
 from torchlib.deep_rl.value_based.ddpg import ActorNetwork, CriticNetwork
 from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
 from torchlib.utils.weight_utils import fanin_init
@@ -121,7 +122,7 @@ if __name__ == '__main__':
     if args['test']:
         try:
             actor.load_checkpoint(checkpoint_path)
-            ddpg.test(env, actor, seed=args['seed'])
+            deep_rl.test(env, actor, seed=args['seed'])
         except:
             print("Can't find checkpoint. Abort")
 
@@ -134,4 +135,4 @@ if __name__ == '__main__':
         ddpg.train(env, actor, critic, actor_noise, args['n_iter'], args['replay_type'],
                    replay_buffer_config, args['batch_size'], args['discount'], args['learn_start'],
                    learning_freq=args['learning_freq'], seed=args['seed'], log_every_n_steps=args['log_every_n_steps'],
-                   checkpoint_path=checkpoint_path)
+                   actor_checkpoint_path=checkpoint_path)

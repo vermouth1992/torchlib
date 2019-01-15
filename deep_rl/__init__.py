@@ -1,6 +1,6 @@
+import numpy as np
 from gym.envs.registration import register
 from torchlib.utils.random.torch_random_utils import set_global_seeds
-import numpy as np
 
 register(
     id='CartPoleContinuous-v0',

@@ -1,3 +1,7 @@
+from .atari_wrappers import *
+from .flappy_bird_wrappers import *
+
+
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:

@@ -2,10 +2,10 @@
 Continuous cartpole
 """
 
-from gym import spaces, logger
-import numpy as np
 import math
 
+import numpy as np
+from gym import spaces, logger
 from gym.envs.classic_control.cartpole import CartPoleEnv
 
 

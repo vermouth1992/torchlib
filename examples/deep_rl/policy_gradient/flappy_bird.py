@@ -13,9 +13,9 @@ import gym_ple
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.ppo as ppo
+from deep_rl.envs.wrappers import wrap_flappybird
 from gym import wrappers
 from torchlib import deep_rl
-from torchlib.deep_rl.envs.flappy_bird_wrappers import wrap_flappybird
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
