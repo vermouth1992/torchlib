@@ -10,10 +10,10 @@ import torch
 import torch.nn as nn
 from torch.nn import SmoothL1Loss
 from torchlib.common import FloatTensor, LongTensor, enable_cuda, eps
-from torchlib.deep_rl.utils import get_wrapper_by_name, ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, \
-    LinearSchedule, Schedule
-from torchlib.utils.random.torch_random_utils import set_global_seeds
 from torchlib.deep_rl import BaseAgent
+from torchlib.deep_rl.envs.utils import get_wrapper_by_name
+from torchlib.deep_rl.utils import ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, LinearSchedule, Schedule
+from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 
 class QNetwork(BaseAgent):
@@ -71,7 +71,8 @@ class QNetwork(BaseAgent):
         return q_value.data.cpu().numpy(), delta
 
     def predict(self, inputs):
-        return np.argmax(self.compute_q_value(inputs), axis=1)
+        inputs = np.expand_dims(inputs, axis=0)
+        return np.argmax(self.compute_q_value(inputs), axis=1)[0]
 
     def compute_q_value(self, inputs):
         inputs = torch.from_numpy(inputs).type(FloatTensor)

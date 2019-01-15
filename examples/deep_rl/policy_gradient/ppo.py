@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.ppo as ppo
 from torchlib import deep_rl
-from torchlib.common import FloatTensor, enable_cuda
+from torchlib.common import FloatTensor
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 __all__ = ['deep_rl']
@@ -66,7 +66,7 @@ def make_parser():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default='vpg')
+    parser.add_argument('--exp_name', type=str, default='ppo')
     parser.add_argument('--discount', type=float, default=1.0)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
@@ -109,9 +109,6 @@ if __name__ == '__main__':
         policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim)
     else:
         policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim)
-
-    if enable_cuda:
-        policy_net.cuda()
 
     policy_optimizer = torch.optim.Adam(policy_net.parameters(), args.learning_rate)
 

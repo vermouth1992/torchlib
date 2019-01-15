@@ -5,66 +5,16 @@ Train DQN to play flappy bird
 import os
 import pprint
 
-import cv2
-import gym
 import gym_ple
-import numpy as np
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
-from gym import spaces
 from gym import wrappers
-from torchlib.deep_rl.utils.atari_wrappers import MaxAndSkipEnv, ClippedRewardsWrapper
+from torchlib import deep_rl
+from torchlib.deep_rl.envs.flappy_bird_wrappers import wrap_flappybird
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
-
-
-def _process_frame_flappy_bird(frame):
-    img = np.reshape(frame, [512, 288, 3]).astype(np.float32)
-    img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
-    resized_screen = cv2.resize(img, (84, 100), interpolation=cv2.INTER_LINEAR)
-    x_t = resized_screen[0:84, :]
-    x_t = np.reshape(x_t, [84, 84, 1])
-    return x_t.astype(np.uint8)
-
-
-class FlappyBirdNoopResetEnv(gym.Wrapper):
-    def __init__(self, env=None, noop_max=10):
-        """Sample initial states by taking random number of no-ops on reset.
-        No-op is assumed to be action 0.
-        """
-        super(FlappyBirdNoopResetEnv, self).__init__(env)
-        self.noop_max = noop_max
-
-    def _reset(self):
-        """ Do no-op action for a number of steps in [1, noop_max]."""
-        obs = self.env.reset()
-        noops = np.random.randint(1, self.noop_max + 1)
-        for _ in range(noops):
-            obs, _, _, _ = self.env.step(self.env.action_space.sample())
-        return obs
-
-
-class ProcessFrameFlappyBird(gym.Wrapper):
-    def __init__(self, env=None):
-        super(ProcessFrameFlappyBird, self).__init__(env)
-        self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1))
-
-    def _step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        return _process_frame_flappy_bird(obs), reward, done, info
-
-    def _reset(self):
-        return _process_frame_flappy_bird(self.env.reset())
-
-
-def wrap_flappybird(env):
-    env = FlappyBirdNoopResetEnv(env, noop_max=4)
-    env = MaxAndSkipEnv(env, skip=2)
-    env = ProcessFrameFlappyBird(env)
-    env = ClippedRewardsWrapper(env)
-    return env
 
 
 class QModule(nn.Module):
@@ -181,7 +131,7 @@ if __name__ == '__main__':
 
     if args['test']:
         q_network.load_checkpoint(checkpoint_path)
-        dqn.test(env, q_network, frame_history_len=frame_history_len, render=args['render'], seed=args['seed'])
+        deep_rl.test(env, q_network, frame_history_len=1, render=args['render'], seed=args['seed'])
 
     else:
 

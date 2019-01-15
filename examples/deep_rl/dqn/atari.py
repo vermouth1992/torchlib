@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
 from gym import wrappers
-from torchlib.deep_rl.utils.atari_wrappers import wrap_deepmind
+from deep_rl.envs.atari_wrappers import wrap_deepmind
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten

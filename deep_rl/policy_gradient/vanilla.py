@@ -27,6 +27,8 @@ class Agent(BaseAgent):
                  value_coef=0.5):
         super(Agent, self).__init__()
         self.policy_net = policy_net
+        if enable_cuda:
+            self.policy_net.cuda()
         self.policy_optimizer = policy_optimizer
         self.nn_baseline = nn_baseline
         self.baseline_loss = None if not nn_baseline else nn.MSELoss()
