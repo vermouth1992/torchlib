@@ -41,7 +41,7 @@ class Policy(nn.Module):
         x = self.feature.forward(x)
         action = self.action_head.forward(x)
         value = self.value_head.forward(x)
-        return action, value
+        return action, value.squeeze(-1)
 
 
 def make_parser():
