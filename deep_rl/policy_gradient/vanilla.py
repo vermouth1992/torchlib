@@ -149,8 +149,10 @@ class Agent(BaseAgent):
         if not self.nn_baseline:
             raise ValueError('Baseline function is not defined')
         else:
+            state = np.expand_dims(state, axis=0)
+            state = torch.from_numpy(state).type(FloatTensor)
             with torch.no_grad():
-                return self.policy_net.forward(state)[1].cpu().numpy()
+                return self.policy_net.forward(state)[1].cpu().numpy()[0]
 
 
 def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_path_length,
