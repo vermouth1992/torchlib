@@ -2,7 +2,8 @@ import cv2
 import gym
 import numpy as np
 from gym import spaces
-from deep_rl.envs.wrappers.atari_wrappers import MaxAndSkipEnv, ClippedRewardsWrapper
+
+from .atari_wrappers import MaxAndSkipEnv, ClippedRewardsWrapper
 
 
 def _process_frame_flappy_bird(frame):

@@ -9,9 +9,9 @@ import gym_ple
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
-from deep_rl.envs.wrappers import wrap_flappybird
 from gym import wrappers
 from torchlib import deep_rl
+from torchlib.deep_rl.envs.wrappers import wrap_flappybird
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
