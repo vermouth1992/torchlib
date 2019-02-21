@@ -6,8 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
-from torch.utils.data import TensorDataset, DataLoader
 from torchlib.common import eps, enable_cuda
+from torchlib.dataset.utils import create_data_loader
 
 from .utils import compute_gae, compute_sum_of_rewards
 
@@ -48,17 +48,11 @@ class Agent(vanilla_pg.Agent):
 
     def update_policy(self, dataset, epoch=4):
         # construct a dataset using paths containing (action, observation, old_log_prob)
-        actions, advantage, observation, rewards, old_log_prob = dataset
-        torch_dataset = TensorDataset(observation, actions, old_log_prob, rewards, advantage)
-
-        kwargs = {'num_workers': 1, 'pin_memory': True} if enable_cuda else {}
-
-        # note that drop last is important because if there is just 1 reward, std will result in nan.
-        data_loader = DataLoader(torch_dataset, batch_size=32, drop_last=True, shuffle=True, **kwargs)
+        data_loader = create_data_loader(dataset, batch_size=32, shuffle=True, drop_last=True)
 
         for _ in range(epoch):
             for batch_sample in data_loader:
-                observation, action, old_log_prob, discount_rewards, advantage = batch_sample
+                action, advantage, observation, discount_rewards, old_log_prob = batch_sample
                 if enable_cuda:
                     observation = observation.cuda()
                     action = action.cuda()
