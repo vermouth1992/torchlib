@@ -24,7 +24,7 @@ def create_data_loader(data, batch_size=32, shuffle=True, drop_last=False):
     Returns: Pytorch data loader
 
     """
-    kwargs = {'num_workers': 1, 'pin_memory': True} if enable_cuda else {}
+    kwargs = {'num_workers': 0, 'pin_memory': True} if enable_cuda else {}
     dataset = create_tensor_dataset(data)
     loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=shuffle, drop_last=drop_last, **kwargs)
     return loader

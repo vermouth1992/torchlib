@@ -33,7 +33,7 @@ def get_cifar10_dataset(train, transform=None, augmentation=False):
 
 
 def get_cifar10_data_loader(train, batch_size=128, transform=None, augmentation=False):
-    kwargs = {'num_workers': 1, 'pin_memory': True} if enable_cuda else {}
+    kwargs = {'num_workers': 0, 'pin_memory': True} if enable_cuda else {}
     dataset = get_cifar10_dataset(train, transform, augmentation)
     train_loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=True, **kwargs)
     return train_loader
