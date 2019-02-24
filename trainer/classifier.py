@@ -18,13 +18,14 @@ class Classifier(object):
             self.model.cuda()
             self.criterion.cuda()
 
-    def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None, checkpoint_per_epoch=5):
+    def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None):
+        best_val_loss = np.inf
         for i in range(epoch):
             print('Epoch: {}'.format(i + 1))
             total_loss = 0.0
             total = 0
             correct = 0
-            for data_label in tqdm(train_data_loader):
+            for data_label in tqdm(train_data_loader, ascii=True):
                 data, labels = data_label
                 data = data.type(FloatTensor)
                 labels = labels.type(LongTensor)
@@ -42,12 +43,13 @@ class Classifier(object):
             train_loss = total_loss / total
             train_accuracy = correct / total * 100
             val_loss, val_accuracy = self.evaluation(val_data_loader)
+            if val_loss < best_val_loss:
+                self.save_checkpoint(checkpoint_path)
+                best_val_loss = val_loss
             print('Train loss: {:.4f} - Train acc: {:.2f}% - Val loss: {:.4f} - Val acc: {:.2f}%'.format(train_loss,
                                                                                                          train_accuracy,
                                                                                                          val_loss,
                                                                                                          val_accuracy))
-            if checkpoint_path and (i + 1) % checkpoint_per_epoch == 0:
-                self.save_checkpoint(checkpoint_path)
 
     def predict(self, data):
         """ Predict the class for data
@@ -71,7 +73,7 @@ class Classifier(object):
         total_loss = 0.0
         total = 0
         correct = 0
-        for data, labels in tqdm(data_loader):
+        for data, labels in tqdm(data_loader, ascii=True):
             data = data.type(FloatTensor)
             labels = labels.type(LongTensor)
             outputs = self.model(data)
