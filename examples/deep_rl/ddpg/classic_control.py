@@ -94,7 +94,7 @@ if __name__ == '__main__':
     env_name = args['env_name']
     env = gym.make(env_name)
 
-    expt_dir = '/tmp/{}'.format(env)
+    expt_dir = '/tmp/{}'.format(env_name)
     env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
 
     ob_dim = env.observation_space.shape[0]
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     action_bound = env.action_space.high
     print('Action space high: {}'.format(env.action_space.high))
     print('Action space low: {}'.format(env.action_space.low))
-    assert np.sum(env.action_space.high + env.action_space.low) == 0, 'Check the action space.'
+    assert np.all(env.action_space.high == -env.action_space.low), 'Check the action space.'
 
     nn_size = args['nn_size']
     tau = args['target_update_tau']

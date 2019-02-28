@@ -151,10 +151,9 @@ def train(env, q_network: QNetwork, exploration, total_timesteps, replay_buffer_
                 action = env.action_space.sample()
             else:
                 if replay_buffer_type == 'frame':
-                    action = q_network.predict(
-                        np.expand_dims(replay_buffer.encode_recent_observation(), axis=0))[0]
+                    action = q_network.predict(replay_buffer.encode_recent_observation())
                 else:
-                    action = q_network.predict(np.expand_dims(previous_observation, axis=0))[0]
+                    action = q_network.predict(previous_observation)
 
         elif exploration == 'param_noise':
             raise NotImplementedError

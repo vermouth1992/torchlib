@@ -9,7 +9,7 @@ import gym
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
-from deep_rl.envs.wrappers import wrap_deepmind
+from torchlib.deep_rl.envs.wrappers import wrap_deepmind
 from gym import wrappers
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork

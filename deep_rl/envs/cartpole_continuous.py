@@ -12,9 +12,10 @@ from gym.envs.classic_control.cartpole import CartPoleEnv
 class CartPoleContinuous(CartPoleEnv):
     def __init__(self):
         super(CartPoleContinuous, self).__init__()
-        self.action_space = spaces.Box(-np.inf, np.inf, shape=(1,))
+        self.action_space = spaces.Box(-1, 1, shape=(1,))
 
     def step(self, action):
+        action = np.clip(action, a_min=-1, a_max=1)
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         if action[0] > 0:
             action = 1
