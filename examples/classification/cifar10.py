@@ -20,6 +20,7 @@ from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
 
+from torchlib.contrib.adabound import AdaBound
 
 def ResNet18():
     return ResNet32x32(BasicBlock, [2, 2, 2, 2])
@@ -96,17 +97,17 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     pprint.pprint(args)
 
-    checkpoint_path = './checkpoint/cifar10/{}.ckpt'.format(args['net'])
+    checkpoint_path = './checkpoint/cifar10_{}.ckpt'.format(args['net'])
 
     net = network_dict[args['net']]
 
-    test_loader = get_cifar10_data_loader(train=False, augmentation=True)
+    test_loader = get_cifar10_data_loader(train=False, augmentation=False)
 
     criterion = nn.CrossEntropyLoss()
     if args['train']:
         lr = float(args['learning_rate'])
         optimizer = optim.Adam(net.parameters(), lr=lr)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
         optimizer = None
         scheduler = None
@@ -114,7 +115,7 @@ if __name__ == '__main__':
 
     if args['train']:
         epoch = int(args['epoch'])
-        train_loader = get_cifar10_data_loader(train=True)
+        train_loader = get_cifar10_data_loader(train=True, augmentation=True)
         if args['resume'] == 'model':
             classifier.load_checkpoint(checkpoint_path, all=False)
         elif args['resume'] == 'checkpoint':
