@@ -2,10 +2,11 @@
 Common architecture for policy gradient
 """
 
-import torch.nn as nn
+import numpy as np
 import torch
-
+import torch.nn as nn
 from torchlib.common import FloatTensor
+
 
 class PolicyDiscrete(nn.Module):
     def __init__(self, nn_size, state_dim, action_dim, recurrent=False, hidden_size=20):
@@ -48,7 +49,10 @@ class PolicyDiscrete(nn.Module):
 class PolicyContinuous(nn.Module):
     def __init__(self, nn_size, state_dim, action_dim, recurrent=False, hidden_size=20):
         super(PolicyContinuous, self).__init__()
-        self.logstd = torch.nn.Parameter(torch.randn([action_dim, action_dim], requires_grad=True).type(FloatTensor))
+        random_number = np.random.randn(action_dim, action_dim)
+        random_number = np.dot(random_number.T, random_number)
+
+        self.logstd = torch.nn.Parameter(torch.tensor(random_number, requires_grad=True).type(FloatTensor))
         self.model = nn.Sequential(
             nn.Linear(state_dim, nn_size),
             nn.ReLU(),
