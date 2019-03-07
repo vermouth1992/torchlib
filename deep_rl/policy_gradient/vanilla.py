@@ -23,8 +23,8 @@ from .utils import compute_gae, compute_sum_of_rewards, sample_trajectories, pat
 
 
 class Agent(BaseAgent):
-    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, nn_baseline=True, lam=None,
-                 value_coef=0.5):
+    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, init_hidden_unit=None, nn_baseline=True,
+                 lam=None, value_coef=0.5):
         super(Agent, self).__init__()
         self.policy_net = policy_net
         if enable_cuda:
@@ -36,13 +36,27 @@ class Agent(BaseAgent):
         self.lam = lam
         self.value_coef = value_coef
 
-    def get_action_distribution(self, state):
-        if self.discrete:
-            prob = self.policy_net.forward(state)[0]
-            return Categorical(probs=prob)
+        if init_hidden_unit is not None:
+            self.init_hidden_unit = init_hidden_unit
         else:
-            mean, logstd = self.policy_net.forward(state)[0]
-            return MultivariateNormal(mean, torch.exp(logstd))
+            self.init_hidden_unit = np.zeros(shape=(1,))  # dummy hidden unit for feed-forward policy
+
+        assert isinstance(self.init_hidden_unit, np.ndarray), 'Type of init_hidden_unit {}'.format(
+            type(init_hidden_unit))
+
+    def reset(self):
+        self.hidden_unit = self.init_hidden_unit.copy()
+
+    def get_hidden_unit(self):
+        return self.hidden_unit
+
+    def get_action_distribution(self, state, hidden):
+        if self.discrete:
+            prob, hidden, _ = self.policy_net.forward(state, hidden)
+            return Categorical(probs=prob), hidden
+        else:
+            (mean, logstd), hidden, _ = self.policy_net.forward(state, hidden)
+            return MultivariateNormal(mean, torch.exp(logstd)), hidden
 
     def predict(self, state):
         """ Run the forward path of policy_network without gradient.
@@ -62,14 +76,18 @@ class Agent(BaseAgent):
 
         """
         state = np.expand_dims(state, axis=0)
+        self.hidden_unit = np.expand_dims(self.hidden_unit, axis=0)
         with torch.no_grad():
             state = torch.from_numpy(state).type(FloatTensor)
-            action = self.get_action_distribution(state).sample(torch.Size([])).cpu().numpy()
+            hidden = torch.from_numpy(self.hidden_unit).type(FloatTensor)
+            action_dist, hidden = self.get_action_distribution(state, hidden)
+            self.hidden_unit = hidden.cpu().numpy()[0]
+            action = action_dist.sample(torch.Size([])).cpu().numpy()
             return action[0]
 
-    def get_baseline_loss(self, observation, rewards):
+    def get_baseline_loss(self, observation, hidden, rewards):
         # update baseline
-        raw_baseline = self.policy_net.forward(observation)[1]
+        raw_baseline = self.policy_net.forward(observation, hidden)[-1]
         rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards) + eps)
         rewards = rewards.type(FloatTensor)
         loss = self.baseline_loss(raw_baseline, rewards)
@@ -78,6 +96,7 @@ class Agent(BaseAgent):
     def construct_dataset(self, paths, gamma):
         rewards = compute_sum_of_rewards(paths, gamma)
         observation = np.concatenate([path["observation"] for path in paths])
+        hidden = np.concatenate([path["hidden"] for path in paths])
         if self.nn_baseline:
             advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
         else:
@@ -90,9 +109,9 @@ class Agent(BaseAgent):
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
-        return actions, advantage, observation, rewards
+        return actions, advantage, observation, rewards, hidden
 
-    def update_policy(self, dataset, epoch=2):
+    def update_policy(self, dataset, epoch=1):
         """ Update policy
 
         Args:
@@ -101,7 +120,7 @@ class Agent(BaseAgent):
         Returns:
 
         """
-        actions, advantage, observation, rewards = dataset
+        actions, advantage, observation, rewards, hidden = dataset
 
         observation = torch.Tensor(observation).type(FloatTensor)
         actions = torch.Tensor(actions)
@@ -109,12 +128,13 @@ class Agent(BaseAgent):
             actions = actions.cuda()
         advantage = torch.Tensor(advantage).type(FloatTensor)
         rewards = torch.Tensor(rewards).type(FloatTensor)
+        hidden = torch.Tensor(hidden).type(FloatTensor)
 
         for _ in range(epoch):
             # update policy network
             self.policy_optimizer.zero_grad()
             # compute log prob
-            distribution = self.get_action_distribution(observation)
+            distribution, _ = self.get_action_distribution(observation, hidden)
             log_prob = distribution.log_prob(actions)
 
             assert log_prob.shape == advantage.shape, 'log_prob length {}, advantage length {}'.format(log_prob.shape,
@@ -124,7 +144,7 @@ class Agent(BaseAgent):
             loss = action_loss
 
             if self.nn_baseline:
-                value_loss = self.get_baseline_loss(observation, rewards)
+                value_loss = self.get_baseline_loss(observation, hidden, rewards)
                 loss = loss + value_loss * self.value_coef
 
             loss.backward()
@@ -201,4 +221,4 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
                                                        'std': np.std(ep_lengths)}, itr)
 
         print('Iteration {} - Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}] - Best Avg Return {:.2f}'.format(
-            itr, avg_return, std_return, min_return, max_return, best_avg_return))
+            itr + 1, avg_return, std_return, min_return, max_return, best_avg_return))

@@ -6,59 +6,15 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 import pprint
 
 import gym.spaces
+import numpy as np
 import torch
-import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torchlib import deep_rl
-from torchlib.common import FloatTensor, enable_cuda
+from torchlib.common import enable_cuda
+from torchlib.deep_rl.policy_gradient.models import PolicyDiscrete, PolicyContinuous
 
+# used for import self-define envs
 __all__ = ['deep_rl']
-
-
-class PolicyDiscrete(nn.Module):
-    def __init__(self, nn_size, state_dim, action_dim):
-        assert action_dim > 1, 'Action dim must be greater than 1. Got {}'.format(action_dim)
-        super(PolicyDiscrete, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(state_dim, nn_size),
-            nn.ReLU(),
-            nn.Linear(nn_size, nn_size),
-            nn.ReLU()
-        )
-        self.action_head = nn.Sequential(
-            nn.Linear(nn_size, action_dim),
-            nn.Softmax(dim=-1)
-        )
-        self.value_head = nn.Linear(nn_size, 1)
-
-    def forward(self, state):
-        x = self.model.forward(state)
-        action = self.action_head.forward(x)
-        value = self.value_head.forward(x)
-        return action, value.squeeze(-1)
-
-
-class PolicyContinuous(nn.Module):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(PolicyContinuous, self).__init__()
-        self.logstd = torch.nn.Parameter(torch.randn([action_dim, action_dim], requires_grad=True).type(FloatTensor))
-        self.model = nn.Sequential(
-            nn.Linear(state_dim, nn_size),
-            nn.ReLU(),
-            nn.Linear(nn_size, nn_size),
-            nn.ReLU(),
-        )
-        self.action_head = nn.Sequential(
-            nn.Linear(nn_size, action_dim),
-            nn.Tanh()
-        )
-        self.value_head = nn.Linear(nn_size, 1)
-
-    def forward(self, state):
-        x = self.model.forward(state)
-        mean = self.action_head.forward(x)
-        value = self.value_head.forward(x)
-        return (mean, self.logstd), value.squeeze(-1)
 
 
 def make_parser():
@@ -72,7 +28,9 @@ def make_parser():
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-    parser.add_argument('--nn_baseline', '-bl', action='store_true')
+    parser.add_argument('--nn_baseline', '-bl', action='store_false')
+    parser.add_argument('--recurrent', '-re', action='store_true')
+    parser.add_argument('--hidden_size', type=int, default=20)
     parser.add_argument('--nn_size', '-s', type=int, default=64)
     parser.add_argument('--value_coef', type=float, default=0.5)
     parser.add_argument('--seed', type=int, default=1)
@@ -101,10 +59,13 @@ if __name__ == '__main__':
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
 
+    recurrent = args.recurrent
+    hidden_size = args.hidden_size
+
     if discrete:
-        policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim)
+        policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
     else:
-        policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim)
+        policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
 
     if enable_cuda:
         policy_net.cuda()
@@ -116,7 +77,16 @@ if __name__ == '__main__':
     else:
         gae_lambda = None
 
-    agent = vanilla_pg.Agent(policy_net, policy_optimizer, discrete, args.nn_baseline, gae_lambda,
+    if recurrent:
+        init_hidden_unit = np.zeros(shape=(hidden_size))
+    else:
+        init_hidden_unit = None
+
+    agent = vanilla_pg.Agent(policy_net, policy_optimizer,
+                             discrete=discrete,
+                             init_hidden_unit=init_hidden_unit,
+                             nn_baseline=args.nn_baseline,
+                             lam=gae_lambda,
                              value_coef=args.value_coef)
 
     vanilla_pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,

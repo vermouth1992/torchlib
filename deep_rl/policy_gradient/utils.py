@@ -32,7 +32,9 @@ def compute_gae(paths, gamma, policy_net, lam, mean, std):
     gaes = []
     for path in paths:
         with torch.no_grad():
-            values = policy_net.forward(torch.from_numpy(path['observation']).type(FloatTensor))[1].cpu().numpy()
+            observation = torch.from_numpy(path['observation']).type(FloatTensor)
+            hidden = torch.from_numpy(path['hidden']).type(FloatTensor)
+            values = policy_net.forward(observation, hidden)[-1].cpu().numpy()
         values = values * std + mean
         temporal_difference = path['reward'] + np.append(values[1:] * gamma, 0) - values
         # calculate reward-to-go
@@ -45,7 +47,8 @@ def compute_gae(paths, gamma, policy_net, lam, mean, std):
 def sample_trajectory(agent, env, max_path_length):
     # this function should not participate in the computation graph
     ob = env.reset()
-    actions, rewards, obs = [], [], []
+    agent.reset()
+    actions, rewards, obs, hiddens = [], [], [], []
     steps = 0
     while True:
         # distribution = agent.get_action_distribution(np.array([ob]))
@@ -53,9 +56,12 @@ def sample_trajectory(agent, env, max_path_length):
         # ac = distribution.sample(torch.Size([1]))
         #
         # log_prob.append(distribution.log_prob(ac))
+
+        obs.append(ob)
+        hiddens.append(agent.get_hidden_unit())
+
         ac = agent.predict(ob)
         actions.append(ac)
-        obs.append(ob)
 
         ob, rew, done, _ = env.step(ac)
         rewards.append(rew)
@@ -64,7 +70,8 @@ def sample_trajectory(agent, env, max_path_length):
             break
     path = {"actions": actions,
             "reward": rewards,
-            "observation": np.array(obs)}
+            "observation": np.array(obs),
+            "hidden": np.array(hiddens)}
     return path
 
 

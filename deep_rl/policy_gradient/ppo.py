@@ -13,15 +13,16 @@ from .utils import compute_gae, compute_sum_of_rewards
 
 
 class Agent(vanilla_pg.Agent):
-    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, lam=1., clip_param=0.2, entropy_coef=0.01,
-                 value_coef=0.5):
-        super(Agent, self).__init__(policy_net, policy_optimizer, discrete, True, lam, value_coef)
+    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, init_hidden_unit, lam=1., clip_param=0.2,
+                 entropy_coef=0.01, value_coef=0.5):
+        super(Agent, self).__init__(policy_net, policy_optimizer, discrete, init_hidden_unit, True, lam, value_coef)
         self.clip_param = clip_param
         self.entropy_coef = entropy_coef
 
     def construct_dataset(self, paths, gamma):
         rewards = compute_sum_of_rewards(paths, gamma)
         observation = np.concatenate([path["observation"] for path in paths])
+        hidden = np.concatenate([path["hidden"] for path in paths])
         advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
 
         # reshape all episodes to a single large batch
@@ -35,16 +36,17 @@ class Agent(vanilla_pg.Agent):
         advantage = torch.Tensor(advantage)
         rewards = torch.Tensor(rewards)
         observation = torch.Tensor(observation)
+        hidden = torch.Tensor(hidden)
 
         with torch.no_grad():
             if enable_cuda:
-                old_distribution = self.get_action_distribution(observation.cuda())
+                old_distribution, _ = self.get_action_distribution(observation.cuda(), hidden.cuda())
                 old_log_prob = old_distribution.log_prob(actions.cuda()).cpu()
             else:
-                old_distribution = self.get_action_distribution(observation)
+                old_distribution, _ = self.get_action_distribution(observation, hidden)
                 old_log_prob = old_distribution.log_prob(actions).cpu()
 
-        return actions, advantage, observation, rewards, old_log_prob
+        return actions, advantage, observation, rewards, old_log_prob, hidden
 
     def update_policy(self, dataset, epoch=4):
         # construct a dataset using paths containing (action, observation, old_log_prob)
@@ -52,17 +54,19 @@ class Agent(vanilla_pg.Agent):
 
         for _ in range(epoch):
             for batch_sample in data_loader:
-                action, advantage, observation, discount_rewards, old_log_prob = batch_sample
+                action, advantage, observation, discount_rewards, old_log_prob, hidden = batch_sample
                 if enable_cuda:
                     observation = observation.cuda()
                     action = action.cuda()
                     old_log_prob = old_log_prob.cuda()
                     discount_rewards = discount_rewards.cuda()
                     advantage = advantage.cuda()
+                    hidden = hidden.cuda()
 
                 self.policy_optimizer.zero_grad()
                 # update policy
-                distribution = self.get_action_distribution(observation)
+                distribution, _ = self.get_action_distribution(observation, hidden)
+
                 entropy_loss = distribution.entropy().mean()
 
                 log_prob = distribution.log_prob(action)
@@ -76,7 +80,7 @@ class Agent(vanilla_pg.Agent):
                 surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                value_loss = self.get_baseline_loss(observation, discount_rewards)
+                value_loss = self.get_baseline_loss(observation, hidden, discount_rewards)
 
                 loss = policy_loss - entropy_loss * self.entropy_coef + self.value_coef * value_loss
                 loss.backward()
