@@ -21,6 +21,12 @@ class BaseAgent(object):
     def predict(self, state):
         raise NotImplementedError
 
+    def reset(self):
+        """
+        This function is used for stateful agent such as recurrent agent.
+        """
+        pass
+
 
 def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=False, seed=1996):
     set_global_seeds(seed)
@@ -31,6 +37,7 @@ def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=Fal
         done = False
         episode_reward = 0
         previous_observation = env.reset()
+        agent.reset()
         observation_lst.append(previous_observation)
         for _ in range(frame_history_len - 1):
             if render:
