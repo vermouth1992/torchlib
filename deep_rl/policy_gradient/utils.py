@@ -6,7 +6,8 @@ import numpy as np
 import torch
 from scipy import signal
 
-from torchlib.common import FloatTensor
+from torchlib.common import enable_cuda, FloatTensor
+from torchlib.dataset.utils import create_data_loader
 
 
 def discount(x, gamma):
@@ -32,9 +33,15 @@ def compute_gae(paths, gamma, policy_net, lam, mean, std):
     gaes = []
     for path in paths:
         with torch.no_grad():
-            observation = torch.from_numpy(path['observation']).type(FloatTensor)
-            hidden = torch.from_numpy(path['hidden']).type(FloatTensor)
-            values = policy_net.forward(observation, hidden)[-1].cpu().numpy()
+            observation = torch.from_numpy(path['observation'])
+            hidden = torch.from_numpy(path['hidden'])
+            data_loader = create_data_loader((observation, hidden), batch_size=32, shuffle=False, drop_last=False)
+            values = []
+            for obs, hid in data_loader:
+                obs = obs.type(FloatTensor)
+                hid = hid.type(FloatTensor)
+                values.append(policy_net.forward(obs, hid)[-1])
+            values = torch.cat(values, dim=0).cpu().numpy()
         values = values * std + mean
         temporal_difference = path['reward'] + np.append(values[1:] * gamma, 0) - values
         # calculate reward-to-go

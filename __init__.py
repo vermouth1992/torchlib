@@ -36,4 +36,10 @@ except:
     config = default_config
 
 enable_cuda = config['enable_cuda'] and torch.cuda.is_available()
+if 'CUDA' in os.environ:
+    enable_cuda_env = os.environ['CUDA']
+    if enable_cuda_env == 'True':
+        enable_cuda = enable_cuda
+    elif enable_cuda_env == 'False':
+        enable_cuda = False
 print('Enable cuda {}'.format(enable_cuda))

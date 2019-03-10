@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
-from torchlib.common import eps, enable_cuda
+from torchlib.common import eps, enable_cuda, FloatTensor
 from torchlib.dataset.utils import create_data_loader
 
 from .utils import compute_gae, compute_sum_of_rewards
@@ -39,12 +39,16 @@ class Agent(vanilla_pg.Agent):
         hidden = torch.Tensor(hidden)
 
         with torch.no_grad():
-            if enable_cuda:
-                old_distribution, _ = self.get_action_distribution(observation.cuda(), hidden.cuda())
-                old_log_prob = old_distribution.log_prob(actions.cuda()).cpu()
-            else:
-                old_distribution, _ = self.get_action_distribution(observation, hidden)
-                old_log_prob = old_distribution.log_prob(actions).cpu()
+            data_loader = create_data_loader((observation, hidden, actions), batch_size=32, shuffle=False,
+                                             drop_last=False)
+            old_log_prob = []
+            for obs, hid, ac in data_loader:
+                obs = obs.type(FloatTensor)
+                hid = hid.type(FloatTensor)
+                ac = ac.type(FloatTensor)
+                old_distribution, _ = self.get_action_distribution(obs, hid)
+                old_log_prob.append(old_distribution.log_prob(ac))
+            old_log_prob = torch.cat(old_log_prob, dim=0).cpu()
 
         return actions, advantage, observation, rewards, old_log_prob, hidden
 
