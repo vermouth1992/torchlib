@@ -4,7 +4,7 @@ A simple classification interface
 
 import numpy as np
 import torch
-from torchlib.common import FloatTensor, LongTensor, enable_cuda
+from torchlib.common import FloatTensor, LongTensor, enable_cuda, map_location
 from tqdm import tqdm
 
 
@@ -108,7 +108,7 @@ class Classifier(object):
 
         """
         print('Loading checkpoint from {}'.format(path))
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=map_location)
         self.model.load_state_dict(checkpoint['net'])
         if all:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
