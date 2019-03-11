@@ -66,6 +66,7 @@ class Classifier(object):
         data = data.type(FloatTensor)
         outputs = self.model(data)
         _, predicted = torch.max(outputs.data, 1)
+        self.model.train()
         return predicted.cpu().numpy()
 
     def evaluation(self, data_loader):
@@ -113,3 +114,69 @@ class Classifier(object):
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             if self.scheduler:
                 self.scheduler.load_state_dict(checkpoint['scheduler'])
+
+class BinaryClassifier(Classifier):
+    def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None):
+        best_val_loss = np.inf
+        for i in range(epoch):
+            print('Epoch: {}'.format(i + 1))
+            total_loss = 0.0
+            total = 0
+            correct = 0
+            for data_label in tqdm(train_data_loader, ascii=True):
+                data, labels = data_label
+                data = data.type(FloatTensor)
+                labels = labels.type(LongTensor)
+                self.optimizer.zero_grad()
+                outputs = self.model(data)
+                loss = self.criterion(outputs, labels.type(FloatTensor))
+                total_loss += loss.item() * labels.size(0)
+                predicted = outputs.data > 0.5
+                predicted = predicted.type(LongTensor)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                loss.backward()
+                self.optimizer.step()
+            if self.scheduler:
+                self.scheduler.step()
+            train_loss = total_loss / total
+            train_accuracy = correct / total * 100
+            val_loss, val_accuracy = self.evaluation(val_data_loader)
+            if val_loss < best_val_loss:
+                self.save_checkpoint(checkpoint_path)
+                best_val_loss = val_loss
+            print('Train loss: {:.4f} - Train acc: {:.2f}% - Val loss: {:.4f} - Val acc: {:.2f}%'.format(train_loss,
+                                                                                                         train_accuracy,
+                                                                                                         val_loss,
+                                                                                                         val_accuracy))
+
+    def predict(self, data):
+        self.model.eval()
+        if isinstance(data, np.ndarray):
+            data = torch.from_numpy(data)
+        data = data.type(FloatTensor)
+        outputs = self.model(data)
+        predicted = outputs.data > 0.5
+        predicted = predicted.type(LongTensor)
+        self.model.train()
+        return predicted.cpu().numpy()
+
+    def evaluation(self, data_loader):
+        self.model.eval()
+        total_loss = 0.0
+        total = 0
+        correct = 0
+        for data, labels in tqdm(data_loader, ascii=True):
+            data = data.type(FloatTensor)
+            labels = labels.type(LongTensor)
+            outputs = self.model(data)
+            loss = self.criterion(outputs, labels.type(FloatTensor))
+            total_loss += loss.item() * labels.size(0)
+            predicted = outputs.data > 0.5
+            predicted = predicted.type(LongTensor)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        avg_loss = total_loss / total
+        avg_accuracy = correct / total * 100
+        self.model.train()
+        return avg_loss, avg_accuracy

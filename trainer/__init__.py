@@ -1,2 +1,2 @@
-from .classifier import Classifier
+from .classifier import Classifier, BinaryClassifier
 from .regressor import Regressor
