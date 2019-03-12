@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from scipy import signal
 
-from torchlib.common import enable_cuda, FloatTensor
+from torchlib.common import FloatTensor
 from torchlib.dataset.utils import create_data_loader
 
 
@@ -55,15 +55,9 @@ def sample_trajectory(agent, env, max_path_length):
     # this function should not participate in the computation graph
     ob = env.reset()
     agent.reset()
-    actions, rewards, obs, hiddens = [], [], [], []
+    actions, rewards, obs, hiddens, masks = [], [], [], [], []
     steps = 0
     while True:
-        # distribution = agent.get_action_distribution(np.array([ob]))
-        # # ac and log_prob are nodes on computational graph
-        # ac = distribution.sample(torch.Size([1]))
-        #
-        # log_prob.append(distribution.log_prob(ac))
-
         obs.append(ob)
         hiddens.append(agent.get_hidden_unit())
 
@@ -72,13 +66,16 @@ def sample_trajectory(agent, env, max_path_length):
 
         ob, rew, done, _ = env.step(ac)
         rewards.append(rew)
+        masks.append(int(not done))  # if done, mask is 0. Otherwise, 1.
         steps += 1
         if done or steps > max_path_length:
             break
     path = {"actions": actions,
             "reward": rewards,
             "observation": np.array(obs),
-            "hidden": np.array(hiddens)}
+            "hidden": np.array(hiddens),
+            "mask": np.array(masks)
+            }
     return path
 
 

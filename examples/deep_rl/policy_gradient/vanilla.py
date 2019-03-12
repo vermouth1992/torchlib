@@ -7,11 +7,11 @@ import pprint
 
 import gym.spaces
 import numpy as np
-import torch
+import torch.optim
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torchlib import deep_rl
 from torchlib.common import enable_cuda
-from torchlib.deep_rl.policy_gradient.models import PolicyDiscrete, PolicyContinuous
+from torchlib.deep_rl.policy_gradient.models import ContinuousNNPolicy, DiscreteNNPolicy
 
 # used for import self-define envs
 __all__ = ['deep_rl']
@@ -22,17 +22,17 @@ def make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
     parser.add_argument('--exp_name', type=str, default='vpg')
-    parser.add_argument('--discount', type=float, default=1.0)
+    parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-    parser.add_argument('--nn_baseline', '-bl', action='store_false')
+    parser.add_argument('--nn_baseline', '-bl', action='store_true')
     parser.add_argument('--recurrent', '-re', action='store_true')
     parser.add_argument('--hidden_size', type=int, default=20)
     parser.add_argument('--nn_size', '-s', type=int, default=64)
-    parser.add_argument('--value_coef', type=float, default=0.5)
+    parser.add_argument('--value_coef', type=float, default=1.0)
     parser.add_argument('--seed', type=int, default=1)
     return parser
 
@@ -63,9 +63,11 @@ if __name__ == '__main__':
     hidden_size = args.hidden_size
 
     if discrete:
-        policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
+        policy_net = DiscreteNNPolicy(nn_size=args.nn_size, state_dim=ob_dim, action_dim=ac_dim,
+                                      recurrent=recurrent, hidden_size=hidden_size)
     else:
-        policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
+        policy_net = ContinuousNNPolicy(recurrent=recurrent, nn_size=args.nn_size, state_dim=ob_dim,
+                                        action_dim=ac_dim, hidden_size=hidden_size)
 
     if enable_cuda:
         policy_net.cuda()
@@ -83,7 +85,6 @@ if __name__ == '__main__':
         init_hidden_unit = None
 
     agent = vanilla_pg.Agent(policy_net, policy_optimizer,
-                             discrete=discrete,
                              init_hidden_unit=init_hidden_unit,
                              nn_baseline=args.nn_baseline,
                              lam=gae_lambda,

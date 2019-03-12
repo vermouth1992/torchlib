@@ -7,10 +7,10 @@ import pprint
 
 import gym.spaces
 import numpy as np
-import torch
+import torch.optim
 import torchlib.deep_rl.policy_gradient.ppo as ppo
 from torchlib import deep_rl
-from torchlib.deep_rl.policy_gradient.models import PolicyDiscrete, PolicyContinuous
+from torchlib.deep_rl.policy_gradient.models import DiscreteNNPolicy, ContinuousNNPolicy
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 __all__ = ['deep_rl']
@@ -45,7 +45,8 @@ if __name__ == '__main__':
     max_path_length = args.ep_len if args.ep_len > 0 else None
 
     if args.env_name.startswith('Roboschool'):
-        pass
+        import roboschool
+        __all__.append('roboschool')
 
     set_global_seeds(args.seed)
 
@@ -65,9 +66,11 @@ if __name__ == '__main__':
     hidden_size = args.hidden_size
 
     if discrete:
-        policy_net = PolicyDiscrete(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
+        policy_net = DiscreteNNPolicy(nn_size=args.nn_size, state_dim=ob_dim, action_dim=ac_dim,
+                                      recurrent=recurrent, hidden_size=hidden_size)
     else:
-        policy_net = PolicyContinuous(args.nn_size, ob_dim, ac_dim, recurrent, hidden_size)
+        policy_net = ContinuousNNPolicy(nn_size=args.nn_size, state_dim=ob_dim, action_dim=ac_dim,
+                                        recurrent=recurrent, hidden_size=hidden_size)
 
     policy_optimizer = torch.optim.Adam(policy_net.parameters(), args.learning_rate)
 
@@ -79,7 +82,6 @@ if __name__ == '__main__':
         init_hidden_unit = None
 
     agent = ppo.Agent(policy_net, policy_optimizer,
-                      discrete=discrete,
                       init_hidden_unit=init_hidden_unit,
                       lam=gae_lambda,
                       clip_param=args.clip_param,

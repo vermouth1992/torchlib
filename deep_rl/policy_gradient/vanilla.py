@@ -15,7 +15,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
-from torch.distributions import Categorical, MultivariateNormal
 from torchlib.common import FloatTensor, eps, enable_cuda
 from torchlib.deep_rl import BaseAgent
 
@@ -23,7 +22,7 @@ from .utils import compute_gae, compute_sum_of_rewards, sample_trajectories, pat
 
 
 class Agent(BaseAgent):
-    def __init__(self, policy_net: nn.Module, policy_optimizer, discrete, init_hidden_unit=None, nn_baseline=True,
+    def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit=None, nn_baseline=True,
                  lam=None, value_coef=0.5):
         super(Agent, self).__init__()
         self.policy_net = policy_net
@@ -32,31 +31,24 @@ class Agent(BaseAgent):
         self.policy_optimizer = policy_optimizer
         self.nn_baseline = nn_baseline
         self.baseline_loss = None if not nn_baseline else nn.MSELoss()
-        self.discrete = discrete
         self.lam = lam
         self.value_coef = value_coef
+        self.recurrent = init_hidden_unit is not None
 
         if init_hidden_unit is not None:
             self.init_hidden_unit = init_hidden_unit
         else:
-            self.init_hidden_unit = np.zeros(shape=(1,))  # dummy hidden unit for feed-forward policy
+            self.init_hidden_unit = np.zeros(shape=(1))  # dummy hidden unit for feed-forward policy
 
         assert isinstance(self.init_hidden_unit, np.ndarray), 'Type of init_hidden_unit {}'.format(
             type(init_hidden_unit))
+        assert len(self.init_hidden_unit.shape) == 1
 
     def reset(self):
         self.hidden_unit = self.init_hidden_unit.copy()
 
     def get_hidden_unit(self):
         return self.hidden_unit
-
-    def get_action_distribution(self, state, hidden):
-        if self.discrete:
-            prob, hidden, _ = self.policy_net.forward(state, hidden)
-            return Categorical(probs=prob), hidden
-        else:
-            (mean, logstd), hidden, _ = self.policy_net.forward(state, hidden)
-            return MultivariateNormal(mean, torch.exp(logstd)), hidden
 
     def predict(self, state):
         """ Run the forward path of policy_network without gradient.
@@ -80,15 +72,14 @@ class Agent(BaseAgent):
         with torch.no_grad():
             state = torch.from_numpy(state).type(FloatTensor)
             hidden = torch.from_numpy(self.hidden_unit).type(FloatTensor)
-            action_dist, hidden = self.get_action_distribution(state, hidden)
+            action_dist, hidden, _ = self.policy_net.forward(state, hidden)
             self.hidden_unit = hidden.cpu().numpy()[0]
             action = action_dist.sample(torch.Size([])).cpu().numpy()
             return action[0]
 
-    def get_baseline_loss(self, observation, hidden, rewards):
+    def get_baseline_loss(self, raw_baseline, rewards):
         # update baseline
-        raw_baseline = self.policy_net.forward(observation, hidden)[-1]
-        rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards) + eps)
+        rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards, unbiased=False) + eps)
         rewards = rewards.type(FloatTensor)
         loss = self.baseline_loss(raw_baseline, rewards)
         return loss
@@ -97,6 +88,7 @@ class Agent(BaseAgent):
         rewards = compute_sum_of_rewards(paths, gamma)
         observation = np.concatenate([path["observation"] for path in paths])
         hidden = np.concatenate([path["hidden"] for path in paths])
+        mask = np.concatenate([path["mask"] for path in paths])
         if self.nn_baseline:
             advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
         else:
@@ -109,7 +101,7 @@ class Agent(BaseAgent):
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
-        return actions, advantage, observation, rewards, hidden
+        return actions, advantage, observation, rewards, hidden, mask
 
     def update_policy(self, dataset, epoch=1):
         """ Update policy
@@ -120,7 +112,7 @@ class Agent(BaseAgent):
         Returns:
 
         """
-        actions, advantage, observation, rewards, hidden = dataset
+        actions, advantage, observation, rewards, hidden, mask = dataset
 
         observation = torch.Tensor(observation).type(FloatTensor)
         actions = torch.Tensor(actions)
@@ -128,14 +120,32 @@ class Agent(BaseAgent):
             actions = actions.cuda()
         advantage = torch.Tensor(advantage).type(FloatTensor)
         rewards = torch.Tensor(rewards).type(FloatTensor)
-        hidden = torch.Tensor(hidden).type(FloatTensor)
 
         for _ in range(epoch):
             # update policy network
             self.policy_optimizer.zero_grad()
-            # compute log prob
-            distribution, _ = self.get_action_distribution(observation, hidden)
-            log_prob = distribution.log_prob(actions)
+            # compute log prob, assume observation is small.
+            if not self.recurrent:
+                distribution, _, raw_baselines = self.policy_net.forward(observation, None)
+                log_prob = distribution.log_prob(actions)
+            else:
+                log_prob = []
+                raw_baselines = []
+                zero_index = np.where(mask == 0)[0] + 1
+                zero_index = zero_index.tolist()
+                zero_index.insert(0, 0)
+                for i in range(len(zero_index) - 1):
+                    start_index = zero_index[i]
+                    end_index = zero_index[i + 1]
+                    current_obs = observation[start_index:end_index]
+                    current_actions = actions[start_index:end_index]
+                    current_hidden = torch.Tensor(np.expand_dims(self.init_hidden_unit, axis=0)).type(FloatTensor)
+                    current_dist, _, current_baseline = self.policy_net.forward(current_obs, current_hidden)
+                    log_prob.append(current_dist.log_prob(current_actions))
+                    raw_baselines.append(current_baseline)
+
+                log_prob = torch.cat(log_prob, dim=0)
+                raw_baselines = torch.cat(raw_baselines, dim=0)
 
             assert log_prob.shape == advantage.shape, 'log_prob length {}, advantage length {}'.format(log_prob.shape,
                                                                                                        advantage.shape)
@@ -144,7 +154,7 @@ class Agent(BaseAgent):
             loss = action_loss
 
             if self.nn_baseline:
-                value_loss = self.get_baseline_loss(observation, hidden, rewards)
+                value_loss = self.get_baseline_loss(raw_baselines, rewards)
                 loss = loss + value_loss * self.value_coef
 
             loss.backward()
