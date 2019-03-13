@@ -38,6 +38,7 @@ def make_parser():
     parser.add_argument('--hidden_size', type=int, default=64)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--render', action='store_true')
     return parser
 
 
@@ -91,7 +92,7 @@ if __name__ == '__main__':
 
     if args['test']:
         agent.load_checkpoint(checkpoint_path)
-        deep_rl.test(env, agent, frame_history_len=frame_history_len, render=args['render'], seed=args['seed'])
+        deep_rl.test(env, agent, frame_history_len=1, render=args['render'], seed=args['seed'])
 
     else:
         ppo.train(args['exp_name'], env, agent, args['n_iter'], args['discount'], args['batch_size'], max_path_length,
