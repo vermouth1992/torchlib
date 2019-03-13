@@ -92,7 +92,8 @@ if __name__ == '__main__':
 
     if args['test']:
         agent.load_checkpoint(checkpoint_path)
-        deep_rl.test(env, agent, frame_history_len=1, render=args['render'], seed=args['seed'])
+        deep_rl.test(env, agent, num_episode=args['n_iter'], frame_history_len=1, render=args['render'],
+                     seed=args['seed'])
 
     else:
         ppo.train(args['exp_name'], env, agent, args['n_iter'], args['discount'], args['batch_size'], max_path_length,
