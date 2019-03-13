@@ -74,7 +74,6 @@ class Agent(vanilla_pg.Agent):
                     old_log_prob = old_log_prob.cuda()
                     discount_rewards = discount_rewards.cuda()
                     advantage = advantage.cuda()
-                    hidden = hidden.cuda()
 
                 self.policy_optimizer.zero_grad()
                 # update policy

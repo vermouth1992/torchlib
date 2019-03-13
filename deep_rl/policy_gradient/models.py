@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch.distributions import Categorical
 from torchlib.common import FloatTensor
 from torchlib.deep_rl.utils.distributions import FixedNormal
+from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
 class BasePolicy(nn.Module):
@@ -139,6 +140,25 @@ class NNPolicy(BasePolicy):
         return model
 
 
+class AtariCNNPolicy(BasePolicy):
+    def __init__(self, num_channel, **kwargs):
+        self.num_channel = num_channel
+        super(AtariCNNPolicy, self).__init__(**kwargs)
+
+    def _create_feature_extractor(self):
+        feature = nn.Sequential(
+            *conv2d_bn_relu_block(self.num_channel, 32, kernel_size=8, stride=4, padding=4, normalize=False),
+            *conv2d_bn_relu_block(32, 64, kernel_size=4, stride=2, padding=2, normalize=False),
+            *conv2d_bn_relu_block(64, 64, kernel_size=3, stride=1, padding=1, normalize=False),
+            Flatten(),
+            *linear_bn_relu_block(12 * 12 * 64, 512, normalize=False),
+        )
+        return feature
+
+    def _calculate_feature_output_size(self):
+        return 512
+
+
 class ContinuousNNPolicy(NNPolicy, ContinuousPolicy):
     def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
         super(ContinuousNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
@@ -149,3 +169,14 @@ class DiscreteNNPolicy(NNPolicy, DiscretePolicy):
     def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
         super(DiscreteNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
                                                nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+
+
+class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
+    def __init__(self, recurrent, hidden_size, num_channel, action_dim):
+        super(AtariPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size, num_channel=num_channel,
+                                          action_dim=action_dim)
+
+    def forward(self, state, hidden):
+        state = state / 255.0
+        state = state.permute(0, 3, 1, 2)
+        return super(AtariPolicy, self).forward(state, hidden)
