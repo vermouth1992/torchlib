@@ -10,6 +10,8 @@ Use various optimization techniques
 """
 
 import os
+import time
+import datetime
 
 import numpy as np
 import torch
@@ -201,15 +203,18 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
 
     best_avg_return = None
 
+    start_time = time.time()
+
     for itr in range(n_iter):
         paths, timesteps_this_batch = sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length)
 
         total_timesteps += timesteps_this_batch
-        print('Iteration {}/{} - Number of paths {} - Timesteps this batch {} - Total timesteps {}'.format(itr + 1,
-                                                                                                           n_iter,
-                                                                                                           len(paths),
-                                                                                                           timesteps_this_batch,
-                                                                                                           total_timesteps))
+        print('Iteration {}/{} - Number of paths {} - Timesteps this batch {} - Total timesteps {}'.format(
+            itr + 1,
+            n_iter,
+            len(paths),
+            timesteps_this_batch,
+            total_timesteps))
 
         datasets = agent.construct_dataset(paths, gamma)
         agent.update_policy(datasets)
@@ -235,10 +240,14 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
             writer.add_scalars('data/episode_length', {'avg': np.mean(ep_lengths),
                                                        'std': np.std(ep_lengths)}, itr)
 
-        print('Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}] - Best Avg Return {:.2f}'.format(avg_return,
-                                                                                                     std_return,
-                                                                                                     min_return,
-                                                                                                     max_return,
-                                                                                                     best_avg_return))
-
         del datasets, paths
+
+        time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
+
+        print('Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}] - Best Avg Return {:.2f} - Time elapsed {}'.format(
+            avg_return,
+            std_return,
+            min_return,
+            max_return,
+            best_avg_return,
+            time_elapse))
