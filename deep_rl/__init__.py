@@ -54,7 +54,7 @@ def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=Fal
             episode_reward += reward
             observation_lst.pop(0)
             observation_lst.append(previous_observation)
-        print('Episode: {}. Reward: {}'.format(i, episode_reward))
+        print('Episode: {}/{}. Reward: {}'.format(i + 1, num_episode, episode_reward))
         reward_lst.append(episode_reward)
     print('Reward range [{}, {}]'.format(np.min(reward_lst), np.max(reward_lst)))
     print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
