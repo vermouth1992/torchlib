@@ -209,15 +209,16 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         paths, timesteps_this_batch = sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length)
 
         total_timesteps += timesteps_this_batch
+
+        datasets = agent.construct_dataset(paths, gamma)
+        agent.update_policy(datasets)
+
         print('Iteration {}/{} - Number of paths {} - Timesteps this batch {} - Total timesteps {}'.format(
             itr + 1,
             n_iter,
             len(paths),
             timesteps_this_batch,
             total_timesteps))
-
-        datasets = agent.construct_dataset(paths, gamma)
-        agent.update_policy(datasets)
 
         # logger
         returns = [np.sum(path["reward"]) for path in paths]
