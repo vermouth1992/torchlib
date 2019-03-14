@@ -9,9 +9,9 @@ Use various optimization techniques
 6. Multiple step update for PG
 """
 
+import datetime
 import os
 import time
-import datetime
 
 import numpy as np
 import torch
@@ -213,6 +213,7 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         datasets = agent.construct_dataset(paths, gamma)
         agent.update_policy(datasets)
 
+        print('-----------------------------------------------------------------------------------')
         print('Iteration {}/{} - Number of paths {} - Timesteps this batch {} - Total timesteps {}'.format(
             itr + 1,
             n_iter,
@@ -231,6 +232,7 @@ def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_pa
         if best_avg_return is None or avg_return > best_avg_return:
             best_avg_return = avg_return
             if checkpoint_path:
+                print('Saving checkpoint to {}'.format(checkpoint_path))
                 agent.save_checkpoint(checkpoint_path=checkpoint_path)
 
         if writer:
