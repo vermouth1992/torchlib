@@ -7,49 +7,12 @@ import pprint
 
 import gym
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torchlib.deep_rl.value_based.dqn as dqn
 from gym import wrappers
 from torchlib import deep_rl
+from torchlib.deep_rl.models.value import QModule, DuelQModule
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
-
-
-class QModule(nn.Module):
-    def __init__(self, size, state_dim, action_dim):
-        super(QModule, self).__init__()
-        self.fc1 = nn.Linear(state_dim, size)
-        self.fc2 = nn.Linear(size, size)
-        self.fc3 = nn.Linear(size, action_dim)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
-        return x
-
-
-class DuelQModule(nn.Module):
-    def __init__(self, size, state_dim, action_dim):
-        super(DuelQModule, self).__init__()
-        self.fc1 = nn.Linear(state_dim, size)
-        self.fc2 = nn.Linear(size, size)
-        self.adv_fc = nn.Linear(size, action_dim)
-        self.value_fc = nn.Linear(size, 1)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        value = self.value_fc(x)
-        adv = self.adv_fc(x)
-        adv = adv - torch.mean(adv, dim=-1, keepdim=True)
-        x = value + adv
-        return x
 
 
 def make_parser():

@@ -17,7 +17,7 @@ from torchlib.deep_rl.envs.wrappers import wrap_flappybird, wrap_deepmind
 from gym import wrappers
 from torchlib import deep_rl
 
-from torchlib.deep_rl.models import AtariPolicy
+from torchlib.deep_rl.models.policy import AtariPolicy
 
 
 def make_parser():

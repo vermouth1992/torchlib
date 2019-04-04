@@ -7,56 +7,12 @@ import pprint
 
 import gym
 import torch
-import torch.nn as nn
 import torchlib.deep_rl.value_based.dqn as dqn
-from torchlib.deep_rl.envs.wrappers import wrap_deepmind
 from gym import wrappers
+from torchlib.deep_rl.envs.wrappers import wrap_deepmind
+from torchlib.deep_rl.models.value import AtariDuelQModule, AtariQModule
 from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
 from torchlib.deep_rl.value_based.dqn import QNetwork
-from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
-
-
-class QModule(nn.Module):
-    def __init__(self, frame_history_len, action_dim):
-        super(QModule, self).__init__()
-        self.model = nn.Sequential(
-            *conv2d_bn_relu_block(frame_history_len, 32, kernel_size=8, stride=4, padding=4, normalize=False),
-            *conv2d_bn_relu_block(32, 64, kernel_size=4, stride=2, padding=2, normalize=False),
-            *conv2d_bn_relu_block(64, 64, kernel_size=3, stride=1, padding=1, normalize=False),
-            Flatten(),
-            *linear_bn_relu_block(12 * 12 * 64, 512, normalize=False),
-            nn.Linear(512, action_dim)
-        )
-
-    def forward(self, x):
-        x = x / 255.0
-        x = x.permute(0, 3, 1, 2)
-        x = self.model.forward(x)
-        return x
-
-
-class DuelQModule(nn.Module):
-    def __init__(self, frame_history_len, action_dim):
-        super(DuelQModule, self).__init__()
-        self.model = nn.Sequential(
-            *conv2d_bn_relu_block(frame_history_len, 32, kernel_size=8, stride=4, padding=4, normalize=False),
-            *conv2d_bn_relu_block(32, 64, kernel_size=4, stride=2, padding=2, normalize=False),
-            *conv2d_bn_relu_block(64, 64, kernel_size=3, stride=1, padding=1, normalize=False),
-            Flatten(),
-            *linear_bn_relu_block(12 * 12 * 64, 512, normalize=False),
-        )
-        self.adv_fc = nn.Linear(512, action_dim)
-        self.value_fc = nn.Linear(512, 1)
-
-    def forward(self, x):
-        x = x / 255.0
-        x = x.permute(0, 3, 1, 2)
-        x = self.model.forward(x)
-        value = self.value_fc(x)
-        adv = self.adv_fc(x)
-        adv = adv - torch.mean(adv, dim=-1, keepdim=True)
-        x = value + adv
-        return x
 
 
 def make_parser():
@@ -98,9 +54,9 @@ if __name__ == '__main__':
     frame_history_len = 4
 
     if args['duel']:
-        network = DuelQModule(frame_history_len, action_dim=env.action_space.n)
+        network = AtariDuelQModule(frame_history_len, action_dim=env.action_space.n)
     else:
-        network = QModule(frame_history_len, action_dim=env.action_space.n)
+        network = AtariQModule(frame_history_len, action_dim=env.action_space.n)
 
     optimizer = torch.optim.Adam(network.parameters(), lr=args['learning_rate'])
 

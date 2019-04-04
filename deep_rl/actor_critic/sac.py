@@ -221,6 +221,8 @@ def make_default_parser():
     parser.add_argument('--n_epoch', type=int, default=500)
     parser.add_argument('--alpha', type=float, default=0.2)
     parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--')
+    parser.add_argument('--reparameterize', type=bool, default=False)
+    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    return parser
 
 

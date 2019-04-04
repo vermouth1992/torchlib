@@ -9,59 +9,12 @@ import pprint
 import gym.spaces
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torchlib.deep_rl.value_based.ddpg as ddpg
 from gym import wrappers
 from torchlib import deep_rl
 from torchlib.deep_rl.value_based.ddpg import ActorNetwork, CriticNetwork
 from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
-from torchlib.utils.weight_utils import fanin_init
 
-
-class ActorModule(nn.Module):
-    def __init__(self, size, state_dim, action_dim, action_bound):
-        super(ActorModule, self).__init__()
-        self.fc1 = nn.Linear(state_dim, size)
-        fanin_init(self.fc1)
-        self.fc2 = nn.Linear(size, size)
-        fanin_init(self.fc2)
-        self.fc3 = nn.Linear(size, action_dim)
-        torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
-        self.action_bound = torch.tensor(action_bound, requires_grad=False)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
-        x = torch.tanh(x)
-        x = x * self.action_bound
-        return x
-
-
-class CriticModule(nn.Module):
-    def __init__(self, size, state_dim, action_dim):
-        super(CriticModule, self).__init__()
-        self.fc1 = nn.Linear(state_dim, size)
-        fanin_init(self.fc1)
-        self.fc2 = nn.Linear(size, size)
-        fanin_init(self.fc2)
-        self.fc_action = nn.Linear(action_dim, size)
-        fanin_init(self.fc_action)
-        self.fc3 = nn.Linear(size, 1)
-        torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
-
-    def forward(self, state, action):
-        x = self.fc1(state)
-        x = F.relu(x)
-        x_state = self.fc2(x)
-        x_action = self.fc_action(action)
-        x = torch.add(x_state, x_action)
-        x = F.relu(x)
-        x = self.fc3(x)
-        return x
 
 
 def make_parser():

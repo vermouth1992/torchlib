@@ -11,7 +11,7 @@ import torch.optim
 import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
 from torchlib import deep_rl
 from torchlib.common import enable_cuda
-from torchlib.deep_rl.models import ContinuousNNPolicy, DiscreteNNPolicy
+from torchlib.deep_rl.models.policy import ContinuousNNPolicy, DiscreteNNPolicy
 
 # used for import self-define envs
 __all__ = ['deep_rl']
