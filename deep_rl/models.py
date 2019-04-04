@@ -6,12 +6,10 @@ The architecture follows the same rule:
 3. A action header and a value header.
 """
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-from torchlib.common import FloatTensor
-from torchlib.deep_rl.utils.distributions import FixedNormal
+from torchlib.deep_rl.utils.distributions import MultivariateNormalDiagTanh
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
@@ -73,17 +71,14 @@ Simple Policy for low dimensional state and action
 class ContinuousActionHead(nn.Module):
     def __init__(self, feature_output_size, action_dim):
         super(ContinuousActionHead, self).__init__()
-        random_number = np.random.randn()
-        self.logstd = torch.nn.Parameter(torch.tensor(random_number, requires_grad=True).type(FloatTensor))
 
-        self.action_head = nn.Sequential(
-            nn.Linear(feature_output_size, action_dim),
-            nn.Tanh()
-        )
+        self.mu_header = nn.Linear(feature_output_size, action_dim)
+        self.log_std_header = nn.Linear(feature_output_size, action_dim)
 
     def forward(self, feature):
-        mu = self.action_head.forward(feature)
-        return FixedNormal(mu, torch.exp(self.logstd))
+        mu = self.mu_header.forward(feature)
+        logstd = self.log_std_header.forward(feature)
+        return MultivariateNormalDiagTanh(mu, torch.exp(logstd))
 
 
 class DiscreteActionHead(nn.Module):

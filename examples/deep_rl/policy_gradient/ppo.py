@@ -10,7 +10,7 @@ import numpy as np
 import torch.optim
 import torchlib.deep_rl.policy_gradient.ppo as ppo
 from torchlib import deep_rl
-from torchlib.deep_rl.policy_gradient.models import DiscreteNNPolicy, ContinuousNNPolicy
+from torchlib.deep_rl.models import DiscreteNNPolicy, ContinuousNNPolicy
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 
 __all__ = ['deep_rl']
