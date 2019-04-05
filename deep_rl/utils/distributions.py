@@ -8,6 +8,29 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import LowRankMultivariateNormal
 
+from torch.distributions import Normal
+
+
+class FixedNormal(Normal):
+    def log_prob(self, value):
+        result = super(FixedNormal, self).log_prob(value)
+        return result.sum(-1)
+
+    def entropy(self):
+        return super(FixedNormal, self).entropy().sum(-1)
+
+
+class FixedNormalTanh(FixedNormal):
+    def log_prob(self, value):
+        out = super(FixedNormalTanh, self).log_prob(value=value)
+        out -= self._squash_correction(value)
+        return out
+
+    def _squash_correction(self, value):
+        ### Problem 2.B
+        ### YOUR CODE HERE
+        return torch.sum(np.log(4.) + 2. * value - 2 * F.softplus(2. * value), dim=1)
+
 
 class MultivariateNormalDiag(LowRankMultivariateNormal):
     def __init__(self, loc, scale):
@@ -32,6 +55,10 @@ class MultivariateNormalDiagTanh(MultivariateNormalDiag):
 
     def sample(self, sample_shape=torch.Size()):
         data = super(MultivariateNormalDiagTanh, self).sample(sample_shape=sample_shape)
+        return torch.tanh(data)
+
+    def rsample(self, sample_shape=torch.Size()):
+        data = super(MultivariateNormalDiagTanh, self).rsample(sample_shape=sample_shape)
         return torch.tanh(data)
 
     def _squash_correction(self, value):

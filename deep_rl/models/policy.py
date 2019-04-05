@@ -9,7 +9,7 @@ The architecture follows the same rule:
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-from torchlib.deep_rl.utils.distributions import MultivariateNormalDiagTanh
+from torchlib.deep_rl.utils.distributions import FixedNormalTanh
 from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
@@ -78,7 +78,7 @@ class ContinuousActionHead(nn.Module):
     def forward(self, feature):
         mu = self.mu_header.forward(feature)
         logstd = self.log_std_header.forward(feature)
-        return MultivariateNormalDiagTanh(mu, torch.exp(logstd))
+        return FixedNormalTanh(mu, torch.exp(logstd))
 
 
 class DiscreteActionHead(nn.Module):
@@ -175,3 +175,22 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
         return super(AtariPolicy, self).forward(state, hidden)
+
+
+class ContinuousNNPolicySAC(nn.Module):
+    def __init__(self, nn_size, state_dim, action_dim):
+        super(ContinuousNNPolicySAC, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(state_dim, nn_size),
+            nn.ReLU(),
+            nn.Linear(nn_size, nn_size),
+            nn.ReLU(),
+        )
+        self.mu_header = nn.Linear(nn_size, action_dim)
+        self.log_std_header = nn.Linear(nn_size, action_dim)
+
+    def forward(self, state):
+        feature = self.model.forward(state)
+        mu = self.mu_header.forward(feature)
+        logstd = self.log_std_header.forward(feature)
+        return FixedNormalTanh(mu, torch.exp(logstd))

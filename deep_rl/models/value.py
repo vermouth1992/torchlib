@@ -80,7 +80,7 @@ class CriticModule(nn.Module):
         fanin_init(self.fc2)
         self.fc_action = nn.Linear(action_dim, size)
         fanin_init(self.fc_action)
-        self.fc3 = nn.Linear(size, 1)
+        self.fc3 = nn.Linear(2 * size, 1)
         torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
 
     def forward(self, state, action):
@@ -88,9 +88,30 @@ class CriticModule(nn.Module):
         x = F.relu(x)
         x_state = self.fc2(x)
         x_action = self.fc_action(action)
-        x = torch.add(x_state, x_action)
+        x = torch.cat((x_state, x_action), dim=-1)
         x = F.relu(x)
         x = self.fc3(x)
+        x = torch.squeeze(x, dim=-1)
+        return x
+
+
+class ValueModule(nn.Module):
+    def __init__(self, size, state_dim):
+        super(ValueModule, self).__init__()
+        self.fc1 = nn.Linear(state_dim, size)
+        fanin_init(self.fc1)
+        self.fc2 = nn.Linear(size, size)
+        fanin_init(self.fc2)
+        self.fc3 = nn.Linear(size, 1)
+        torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
+
+    def forward(self, state):
+        x = self.fc1(state)
+        x = F.relu(x)
+        x = self.fc2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
+        x = torch.squeeze(x, dim=-1)
         return x
 
 

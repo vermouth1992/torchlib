@@ -126,7 +126,7 @@ class Sampler(object):
                 self._action_dim = action_dim
 
             def predict(self, state):
-                return self.env.action_space.sample()
+                return env.action_space.sample()
 
         uniform_exploration_policy = UniformPolicy(env.action_space.shape[0])
         for _ in range(self._prefill_steps):
