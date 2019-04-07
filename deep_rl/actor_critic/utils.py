@@ -3,7 +3,7 @@ Code adjusted from UC Berkeley CS294-131 Fall 2018.
 """
 
 import numpy as np
-from torchlib.deep_rl import BaseAgent
+
 
 class ReplayPool:
     def __init__(self, max_size, fields):
@@ -121,16 +121,8 @@ class Sampler(object):
         self.policy = policy
         self.pool = pool
 
-        class UniformPolicy(BaseAgent):
-            def __init__(self, action_dim):
-                self._action_dim = action_dim
-
-            def predict(self, state):
-                return env.action_space.sample()
-
-        uniform_exploration_policy = UniformPolicy(env.action_space.shape[0])
         for _ in range(self._prefill_steps):
-            self.sample(uniform_exploration_policy)
+            self.sample()
 
     def set_policy(self, policy):
         self.policy = policy

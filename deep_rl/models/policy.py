@@ -69,15 +69,16 @@ Simple Policy for low dimensional state and action
 
 
 class ContinuousActionHead(nn.Module):
-    def __init__(self, feature_output_size, action_dim):
+    def __init__(self, feature_output_size, action_dim, log_std_range=(-20., 2.)):
         super(ContinuousActionHead, self).__init__()
-
+        self.log_std_range = log_std_range
         self.mu_header = nn.Linear(feature_output_size, action_dim)
         self.log_std_header = nn.Linear(feature_output_size, action_dim)
 
     def forward(self, feature):
         mu = self.mu_header.forward(feature)
         logstd = self.log_std_header.forward(feature)
+        logstd = torch.clamp(logstd, min=self.log_std_range[0], max=self.log_std_range[1])
         return FixedNormalTanh(mu, torch.exp(logstd))
 
 
@@ -160,6 +161,16 @@ class ContinuousNNPolicy(NNPolicy, ContinuousPolicy):
                                                  nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
+class ContinuousNNFeedForwardPolicy(NNPolicy, ContinuousPolicy):
+    def __init__(self, nn_size, state_dim, action_dim):
+        super(ContinuousNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
+                                                            nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+
+    def forward(self, state, hidden=None):
+        out = super(ContinuousNNFeedForwardPolicy, self).forward(state=state, hidden=None)
+        return out[0]
+
+
 class DiscreteNNPolicy(NNPolicy, DiscretePolicy):
     def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
         super(DiscreteNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
@@ -175,22 +186,3 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
         return super(AtariPolicy, self).forward(state, hidden)
-
-
-class ContinuousNNPolicySAC(nn.Module):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(ContinuousNNPolicySAC, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(state_dim, nn_size),
-            nn.ReLU(),
-            nn.Linear(nn_size, nn_size),
-            nn.ReLU(),
-        )
-        self.mu_header = nn.Linear(nn_size, action_dim)
-        self.log_std_header = nn.Linear(nn_size, action_dim)
-
-    def forward(self, state):
-        feature = self.model.forward(state)
-        mu = self.mu_header.forward(feature)
-        logstd = self.log_std_header.forward(feature)
-        return FixedNormalTanh(mu, torch.exp(logstd))

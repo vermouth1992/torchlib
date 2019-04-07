@@ -6,62 +6,60 @@ Rewrite Pytorch builtin distribution function to favor policy gradient
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributions import LowRankMultivariateNormal
 
-from torch.distributions import Normal
+from torch.distributions import Normal, Distribution, Independent
+
+from torchlib.common import eps
 
 
-class FixedNormal(Normal):
+class FixedNormal(Distribution):
+    """
+    Treat multiple normal distribution as a single distribution.
+    The same as MultivariateNormalDiag in tensorflow.
+    """
+
+    def __init__(self, loc, scale, validate_args=None):
+        super(FixedNormal, self).__init__()
+        self.normal = Independent(Normal(loc=loc, scale=scale, validate_args=validate_args), 1,
+                                  validate_args=validate_args)
+
+    def sample(self, sample_shape=torch.Size()):
+        return self.normal.sample(sample_shape=sample_shape).detach()
+
+    def rsample(self, sample_shape=torch.Size()):
+        return self.normal.rsample(sample_shape=sample_shape)
+
     def log_prob(self, value):
-        result = super(FixedNormal, self).log_prob(value)
-        return result.sum(-1)
+        return self.normal.log_prob(value)
 
     def entropy(self):
-        return super(FixedNormal, self).entropy().sum(-1)
+        return self.normal.entropy()
 
 
 class FixedNormalTanh(FixedNormal):
-    def log_prob(self, value):
-        out = super(FixedNormalTanh, self).log_prob(value=value)
-        out -= self._squash_correction(value)
-        return out
-
-    def _squash_correction(self, value):
-        ### Problem 2.B
-        ### YOUR CODE HERE
-        return torch.sum(np.log(4.) + 2. * value - 2 * F.softplus(2. * value), dim=1)
-
-
-class MultivariateNormalDiag(LowRankMultivariateNormal):
-    def __init__(self, loc, scale):
-        if loc.dim() == 1:
-            cov_factor = torch.zeros(loc.shape[0], 1)
-        elif loc.dim() == 2:
-            cov_factor = torch.zeros(loc.shape[0], loc.shape[1], 1)
-        else:
-            raise ValueError('Unsupported loc shape {}'.format(loc.shape))
-        super(MultivariateNormalDiag, self).__init__(loc=loc, cov_factor=cov_factor, cov_diag=scale)
-
-
-class MultivariateNormalDiagTanh(MultivariateNormalDiag):
-    """
-    Add tanh function to low rank multivariate normal distribution
-    """
-
-    def log_prob(self, value):
-        out = super(MultivariateNormalDiagTanh, self).log_prob(value=value)
-        out -= self._squash_correction(value)
-        return out
-
     def sample(self, sample_shape=torch.Size()):
-        data = super(MultivariateNormalDiagTanh, self).sample(sample_shape=sample_shape)
-        return torch.tanh(data)
+        out = super(FixedNormalTanh, self).sample(sample_shape=sample_shape)
+        return torch.tanh(out)
 
     def rsample(self, sample_shape=torch.Size()):
-        data = super(MultivariateNormalDiagTanh, self).rsample(sample_shape=sample_shape)
-        return torch.tanh(data)
+        return torch.tanh(super(FixedNormalTanh, self).rsample(sample_shape=sample_shape))
 
-    def _squash_correction(self, value):
+    def log_prob(self, value):
+        """
+
+        Args:
+            value: We assume the value is the one after tanh.
+
+        Returns:
+
+        """
+        raw_value = 0.5 * (torch.log(1. + value + eps) - torch.log(1. - value + eps))
+        out = super(FixedNormalTanh, self).log_prob(value=raw_value)
+        term = torch.sum(torch.log(1. - value * value + eps), dim=1)
+        out = out - term
+        return out
+
+    def _squash_correction(self, raw_value):
         ### Problem 2.B
         ### YOUR CODE HERE
-        return torch.sum(np.log(4.) + 2. * value - 2 * F.softplus(2. * value), dim=1)
+        return torch.sum(np.log(4.) + 2. * raw_value - 2 * F.softplus(2. * raw_value), dim=1)

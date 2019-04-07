@@ -2,8 +2,9 @@
 A set of utilities for weights. Contains apply a wrapper for a layer and weight init
 """
 
-import torch.nn as nn
 import numpy as np
+import torch.nn as nn
+
 
 def apply_weight_norm(layer, weight_norm=None):
     if weight_norm:
@@ -41,3 +42,13 @@ def xavier_init(m):
     elif isinstance(m, nn.BatchNorm2d):
         nn.init.constant_(m.weight, 1)
         nn.init.constant_(m.bias, 0)
+
+
+def soft_update(target, source, tau):
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
+
+def hard_update(target, source):
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(param.data)
