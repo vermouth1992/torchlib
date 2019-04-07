@@ -64,7 +64,6 @@ class SoftActorCritic(BaseAgent):
             self.policy_net.cuda()
             self.q_network.cuda()
             self.target_q_network.cuda()
-            self._log_alpha_tensor = self._log_alpha_tensor.cuda()
 
     def update_target(self):
         soft_update(self.target_q_network, self.q_network, self._tau)

@@ -7,6 +7,7 @@ import torchlib.deep_rl.actor_critic.sac as sac
 from torchlib import deep_rl
 from torchlib.deep_rl.models.policy import ContinuousNNFeedForwardPolicy
 from torchlib.deep_rl.models.value import DoubleCriticModule
+from torchlib.common import device
 
 __all__ = ['deep_rl']
 
@@ -44,7 +45,7 @@ if __name__ == '__main__':
 
     if automatic_entropy_tuning:
         target_entropy = -np.prod(env.action_space.shape)
-        log_alpha_tensor = torch.zeros(1, requires_grad=True)
+        log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)
         alpha_optimizer = torch.optim.Adam([log_alpha_tensor], lr=learning_rate)
 
     else:

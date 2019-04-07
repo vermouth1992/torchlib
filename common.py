@@ -10,3 +10,8 @@ FloatTensor = torch.cuda.FloatTensor if enable_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if enable_cuda else torch.LongTensor
 map_location = None if enable_cuda else 'cpu'
 eps = np.finfo(np.float32).eps.item()
+
+if enable_cuda:
+    device = 'cuda:0'
+else:
+    device = 'cpu'
