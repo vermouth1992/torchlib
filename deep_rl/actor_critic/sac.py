@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-from torchlib.common import FloatTensor
+from torchlib.common import FloatTensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.torch_random_utils import set_global_seeds
 from torchlib.utils.weight_utils import soft_update, hard_update
@@ -59,6 +59,12 @@ class SoftActorCritic(BaseAgent):
         self._target_entropy = target_entropy
         self._log_alpha_tensor = log_alpha_tensor
         self.alpha_optimizer = alpha_optimizer
+
+        if enable_cuda:
+            self.policy_net.cuda()
+            self.q_network.cuda()
+            self.target_q_network.cuda()
+            self._log_alpha_tensor = self._log_alpha_tensor.cuda()
 
     def update_target(self):
         soft_update(self.target_q_network, self.q_network, self._tau)

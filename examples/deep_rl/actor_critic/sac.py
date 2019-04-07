@@ -1,5 +1,6 @@
 import pprint
 
+import numpy as np
 import gym
 import torch.optim
 import torchlib.deep_rl.actor_critic.sac as sac
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     automatic_entropy_tuning = not args['no_automatic_entropy_tuning']
 
     if automatic_entropy_tuning:
-        target_entropy = -torch.prod(torch.Tensor(env.action_space.shape)).item()
+        target_entropy = -np.prod(env.action_space.shape)
         log_alpha_tensor = torch.zeros(1, requires_grad=True)
         alpha_optimizer = torch.optim.Adam([log_alpha_tensor], lr=learning_rate)
 
