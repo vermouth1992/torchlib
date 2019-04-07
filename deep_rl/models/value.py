@@ -52,19 +52,16 @@ class DuelQModule(nn.Module):
 class CriticModule(nn.Module):
     def __init__(self, size, state_dim, action_dim):
         super(CriticModule, self).__init__()
-        self.fc1_state = nn.Linear(state_dim, size)
-        fanin_init(self.fc1_state)
-        self.fc1_action = nn.Linear(action_dim, size)
-        fanin_init(self.fc1_action)
-        self.fc2 = nn.Linear(2 * size, size)
+        self.fc1 = nn.Linear(state_dim + action_dim, size)
+        fanin_init(self.fc1)
+        self.fc2 = nn.Linear(size, size)
         fanin_init(self.fc2)
         self.fc3 = nn.Linear(size, 1)
         torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
 
     def forward(self, state, action):
-        x_state = self.fc1_state(state)
-        x_action = self.fc1_action(action)
-        x = torch.cat((x_state, x_action), dim=-1)
+        x = torch.cat((state, action), dim=-1)
+        x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
         x = F.relu(x)

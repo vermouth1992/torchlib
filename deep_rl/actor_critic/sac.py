@@ -104,9 +104,9 @@ class SoftActorCritic(BaseAgent):
 
         action_distribution = self.policy_net.forward(obs)
 
-        pi = action_distribution.rsample()
+        pi, pre_tanh_pi = action_distribution.rsample(return_raw_value=True)
 
-        log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
+        log_prob = action_distribution.log_prob(pre_tanh_pi, is_raw_value=True)  # should be shape (batch_size,)
 
         q_values_pi, q_values2_pi = self.q_network.forward(obs, pi)
 

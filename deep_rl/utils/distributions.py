@@ -37,14 +37,21 @@ class FixedNormal(Distribution):
 
 
 class FixedNormalTanh(FixedNormal):
-    def sample(self, sample_shape=torch.Size()):
+    def sample(self, sample_shape=torch.Size(), return_raw_value=False):
         out = super(FixedNormalTanh, self).sample(sample_shape=sample_shape)
-        return torch.tanh(out)
+        if return_raw_value:
+            return torch.tanh(out), out
+        else:
+            return torch.tanh(out)
 
-    def rsample(self, sample_shape=torch.Size()):
-        return torch.tanh(super(FixedNormalTanh, self).rsample(sample_shape=sample_shape))
+    def rsample(self, sample_shape=torch.Size(), return_raw_value=False):
+        out = super(FixedNormalTanh, self).rsample(sample_shape=sample_shape)
+        if return_raw_value:
+            return torch.tanh(out), out
+        else:
+            return torch.tanh(out)
 
-    def log_prob(self, value):
+    def log_prob(self, value, is_raw_value=False):
         """
 
         Args:
@@ -53,9 +60,15 @@ class FixedNormalTanh(FixedNormal):
         Returns:
 
         """
-        raw_value = 0.5 * (torch.log(1. + value + eps) - torch.log(1. - value + eps))
+        if not is_raw_value:
+            raw_value = 0.5 * (torch.log(1. + value + eps) - torch.log(1. - value + eps))
+        else:
+            raw_value = value
         out = super(FixedNormalTanh, self).log_prob(value=raw_value)
-        term = torch.sum(torch.log(1. - value * value + eps), dim=1)
+        if not is_raw_value:
+            term = torch.sum(torch.log(1. - value * value + eps), dim=1)
+        else:
+            term = self._squash_correction(raw_value)
         out = out - term
         return out
 

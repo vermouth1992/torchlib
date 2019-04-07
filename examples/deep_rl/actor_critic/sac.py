@@ -15,6 +15,8 @@ if __name__ == '__main__':
     parser = sac.make_default_parser()
 
     parser.add_argument('--nn_size', type=int, default=64)
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--render', action='store_true')
 
     args = vars(parser.parse_args())
     pprint.pprint(args)
@@ -60,7 +62,13 @@ if __name__ == '__main__':
                                 alpha_optimizer=alpha_optimizer,
                                 tau=args['tau'], alpha=args['alpha'], discount=args['discount'])
 
-    sac.train(args['exp_name'], env, agent, args['n_epochs'], max_episode_length=args['max_episode_length'],
-              prefill_steps=args['prefill_steps'], epoch_length=args['epoch_length'],
-              replay_pool_size=args['replay_pool_size'], batch_size=args['batch_size'],
-              seed=args['seed'])
+    checkpoint_path = 'checkpoint/{}_SAC.ckpt'.format(args['env_name'])
+
+    if not args['test']:
+        sac.train(args['exp_name'], env, agent, args['n_epochs'], max_episode_length=args['max_episode_length'],
+                  prefill_steps=args['prefill_steps'], epoch_length=args['epoch_length'],
+                  replay_pool_size=args['replay_pool_size'], batch_size=args['batch_size'],
+                  seed=args['seed'], checkpoint_path=checkpoint_path)
+    else:
+        agent.load_checkpoint(checkpoint_path=checkpoint_path)
+        deep_rl.test(env, agent, num_episode=args['n_epochs'], render=args['render'], seed=args['seed'])
