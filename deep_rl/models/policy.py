@@ -186,3 +186,29 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
         return super(AtariPolicy, self).forward(state, hidden)
+
+
+"""
+Deterministic Policy
+"""
+from torchlib.utils.weight_utils import fanin_init
+
+
+class ActorModule(nn.Module):
+    def __init__(self, size, state_dim, action_dim):
+        super(ActorModule, self).__init__()
+        self.fc1 = nn.Linear(state_dim, size)
+        fanin_init(self.fc1)
+        self.fc2 = nn.Linear(size, size)
+        fanin_init(self.fc2)
+        self.fc3 = nn.Linear(size, action_dim)
+        torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
+        x = torch.tanh(x)
+        return x

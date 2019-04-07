@@ -15,6 +15,7 @@ import torch.optim
 from torchlib.common import FloatTensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.torch_random_utils import set_global_seeds
+from torchlib.utils.weight_utils import soft_update, hard_update
 from tqdm import tqdm
 
 from .utils import SimpleSampler, SimpleReplayPool
@@ -23,10 +24,11 @@ from .utils import SimpleSampler, SimpleReplayPool
 class SoftActorCritic(BaseAgent):
     def __init__(self,
                  policy_net: nn.Module, policy_optimizer,
-                 q_network: nn.Module, q_network2: nn.Module, q_optimizer,
-                 value_network: nn.Module, value_optimizer,
+                 q_network: nn.Module, q_optimizer,
+                 target_entropy=None,
+                 alpha_optimizer=None,
+                 log_alpha_tensor=None,
                  tau=0.01,
-                 reparameterize=False,
                  alpha=1.0,
                  discount=0.99,
                  ):
@@ -45,24 +47,21 @@ class SoftActorCritic(BaseAgent):
         self.policy_net = policy_net
         self.policy_optimizer = policy_optimizer
         self.q_network = q_network
-        self.q_network2 = q_network2
         self.q_optimizer = q_optimizer
-        self.value_network = value_network
-        self.value_optimizer = value_optimizer
-        self.target_value_network = copy.deepcopy(value_network)
+        self.target_q_network = copy.deepcopy(self.q_network)
 
-        self._reparameterize = reparameterize
+        hard_update(self.target_q_network, self.q_network)
+
         self._alpha = alpha
         self._discount = discount
         self._tau = tau
 
+        self._target_entropy = target_entropy
+        self._log_alpha_tensor = log_alpha_tensor
+        self.alpha_optimizer = alpha_optimizer
+
     def update_target(self):
-        source = self.value_network
-        target = self.target_value_network
-        for target_param, param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(
-                target_param.data * (1.0 - self._tau) + param.data * self._tau
-            )
+        soft_update(self.target_q_network, self.q_network, self._tau)
 
     def update(self, obs, actions, next_obs, done, reward):
         """ Sample a mini-batch from replay buffer and update the network
@@ -83,68 +82,63 @@ class SoftActorCritic(BaseAgent):
         done = torch.from_numpy(done).type(FloatTensor)
         reward = torch.from_numpy(reward).type(FloatTensor)
 
-        q_values = self.q_network.forward(obs, actions)
-        q_values2 = self.q_network2.forward(obs, actions)
+        # q loss
+
+        q_values, q_values2 = self.q_network.forward(obs, actions)
 
         with torch.no_grad():
-            target_values = self.target_value_network.forward(next_obs)
-            target_q_values = reward + self._discount * (1.0 - done) * target_values
+            next_action_distribution = self.policy_net.forward(next_obs)
+            next_action = next_action_distribution.sample()
+            target_q_values, target_q_values2 = self.target_q_network.forward(next_obs, next_action)
+            target_q_values = torch.min(target_q_values, target_q_values2)
+            q_target = reward + self._discount * (1.0 - done) * target_q_values
 
-        q_values_loss = F.mse_loss(q_values, target_q_values)
-        q_values2_loss = F.mse_loss(q_values2, target_q_values)
+        q_values_loss = F.mse_loss(q_values, q_target) + F.mse_loss(q_values2, q_target)
+
+        # policy loss
 
         action_distribution = self.policy_net.forward(obs)
 
-        if self._reparameterize:
-            pi = action_distribution.rsample()
-            log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
-            pi = torch.tanh(pi)
+        pi = action_distribution.rsample()
 
-        else:
-            pi = action_distribution.sample().detach()
-            log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
-            pi = torch.tanh(pi)
+        log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
 
-        values = self.value_network.forward(obs)
-
-        q_values_pi = self.q_network.forward(obs, pi)
-        q_values2_pi = self.q_network2.forward(obs, pi)
+        q_values_pi, q_values2_pi = self.q_network.forward(obs, pi)
 
         q_values_pi_min = torch.min(q_values_pi, q_values2_pi)
 
-        expected_values = q_values_pi_min - self._alpha * log_prob
+        policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
 
-        value_loss = F.mse_loss(values, expected_values.detach())
+        # alpha loss
+        if self._log_alpha_tensor is not None:
+            alpha_loss = -(self._log_alpha_tensor * (log_prob + self._target_entropy).detach()).mean()
 
-        if self._reparameterize:
-            policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
 
-        else:
-            policy_loss = torch.mean(log_prob * (self._alpha * log_prob - q_values_pi_min + values).detach())
+            self._alpha = self._log_alpha_tensor.exp()
 
         self.q_optimizer.zero_grad()
         q_values_loss.backward()
         self.q_optimizer.step()
 
-        self.q_optimizer.zero_grad()
-        q_values2_loss.backward()
-        self.q_optimizer.step()
-
-        self.value_optimizer.zero_grad()
-        value_loss.backward()
-        self.value_optimizer.step()
-
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
         self.policy_optimizer.step()
+
+    def get_alpha(self):
+        if self._log_alpha_tensor is not None:
+            return self._alpha.item()
+        else:
+            return self._alpha
 
     def predict(self, state):
         state = np.expand_dims(state, axis=0)
         with torch.no_grad():
             obs = torch.from_numpy(state).type(FloatTensor)
             action_distribution = self.policy_net.forward(obs)
-            actions = action_distribution.sample()
-            actions = torch.tanh(actions).cpu().numpy()
+            actions = action_distribution.sample().cpu().numpy()
             return actions[0]
 
     def save_checkpoint(self, checkpoint_path):
@@ -175,7 +169,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
 
     sampler.initialize(env, agent, replay_pool)
 
-    best_mean_episode_reward = -1
+    best_mean_episode_reward = -np.inf
 
     total_steps = prefill_steps
 
@@ -198,21 +192,22 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
 
         # logging
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
-        last_one_hundred_episode_reward = episode_rewards[-100:]
-        mean_episode_reward = np.mean(last_one_hundred_episode_reward)
+        last_period_episode_reward = episode_rewards[-10:]
+        mean_episode_reward = np.mean(last_period_episode_reward)
         print('------------')
         if mean_episode_reward > best_mean_episode_reward:
             if checkpoint_path:
                 agent.save_checkpoint(checkpoint_path)
 
-        std_episode_reward = np.std(last_one_hundred_episode_reward)
+        std_episode_reward = np.std(last_period_episode_reward)
         best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
         print("Epoch {}/{}. Total timesteps {}".format(epoch + 1, n_epochs, total_steps))
-        print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-        print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
-                                                     np.max(last_one_hundred_episode_reward)))
+        print("mean reward (10 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+        print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
+                                                     np.max(last_period_episode_reward)))
         print("best mean reward {:.2f}".format(best_mean_episode_reward))
         print("episodes %d" % len(episode_rewards))
+        print("alpha {:.2f}".format(agent.get_alpha()))
 
 
 def make_default_parser():
@@ -221,15 +216,15 @@ def make_default_parser():
     parser.add_argument('env_name', type=str)
     parser.add_argument('--exp_name', type=str, default='vpg')
     parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--n_epochs', type=int, default=500)
     parser.add_argument('--alpha', type=float, default=0.2)
     parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--reparameterize', action='store_true')
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--max_episode_length', type=int, default=1000)
+    parser.add_argument('--no_automatic_entropy_tuning', action='store_true')
     parser.add_argument('--epoch_length', type=int, default=1000)
     parser.add_argument('--prefill_steps', type=int, default=1000)
-    parser.add_argument('--replay_pool_size', type=int, default=1e6)
+    parser.add_argument('--replay_pool_size', type=int, default=1000000)
     parser.add_argument('--seed', type=int, default=123)
     return parser
