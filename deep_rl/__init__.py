@@ -41,14 +41,14 @@ def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=Fal
         observation_lst.append(previous_observation)
         for _ in range(frame_history_len - 1):
             if render:
-                env.render()
+                env.render(close=False)
             action = env.action_space.sample()
             previous_observation, reward, done, _ = env.step(action)
             observation_lst.append(previous_observation)
             episode_reward += reward
         while not done:
             if render:
-                env.render()
+                env.render(close=False)
             action = agent.predict(np.concatenate(observation_lst, axis=-1))
             previous_observation, reward, done, _ = env.step(action)
             episode_reward += reward
