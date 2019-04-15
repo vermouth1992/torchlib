@@ -38,7 +38,7 @@ class Trainer(object):
             total = 0
             if self.metrics is not None:
                 correct = [0] * len(self.metrics)
-            for data_label in tqdm(train_data_loader, desc='Epoch: {}/{}'.format(i + 1, epochs)):
+            for data_label in tqdm(train_data_loader, desc='Epoch {}/{}'.format(i + 1, epochs)):
                 data = data_label[:num_inputs]
                 labels = data_label[num_inputs:]
                 data = move_tensor_to_gpu(data)
