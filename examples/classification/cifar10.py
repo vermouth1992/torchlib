@@ -13,14 +13,12 @@ import sys
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.weight_norm import weight_norm
-from torchvision.models.resnet import BasicBlock
-
-from torchlib.trainer.classifier import Classifier
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
+from torchlib.trainer import Trainer
 from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
+from torchvision.models.resnet import BasicBlock
 
-from torchlib.contrib.adabound import AdaBound
 
 def ResNet18():
     return ResNet32x32(BasicBlock, [2, 2, 2, 2])
@@ -111,7 +109,8 @@ if __name__ == '__main__':
     else:
         optimizer = None
         scheduler = None
-    classifier = Classifier(net, optimizer, criterion, scheduler)
+    classifier = Trainer(model=net, optimizer=optimizer, loss=criterion, metrics='accuracy',
+                         scheduler=scheduler)
 
     if args['train']:
         epoch = int(args['epoch'])
@@ -122,10 +121,10 @@ if __name__ == '__main__':
             classifier.load_checkpoint(checkpoint_path, all=True)
         else:
             pass
-        classifier.train(epoch=epoch, train_data_loader=train_loader, val_data_loader=test_loader,
-                         checkpoint_path=checkpoint_path)
+        classifier.fit(epochs=epoch, train_data_loader=train_loader, val_data_loader=test_loader,
+                       checkpoint_path=checkpoint_path, num_inputs=1)
         classifier.save_checkpoint(checkpoint_path)
     else:
         classifier.load_checkpoint(checkpoint_path, all=False)
-        _, acc = classifier.evaluation(test_loader)
+        _, acc = classifier.evaluate(test_loader, num_inputs=1)
         print('Test accuracy: {:.2f}%'.format(acc))

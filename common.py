@@ -15,3 +15,35 @@ if enable_cuda:
     device = 'cuda:0'
 else:
     device = 'cpu'
+
+
+def convert_numpy_to_tensor(numpy_array, location='gpu'):
+    if isinstance(numpy_array, np.ndarray):
+        tensor = torch.from_numpy(numpy_array)
+        if enable_cuda and location == 'gpu':
+            return tensor.cuda()
+        else:
+            return tensor
+    elif isinstance(numpy_array, list) or isinstance(numpy_array, tuple):
+        out = []
+        for array in numpy_array:
+            tensor = torch.from_numpy(array)
+            if enable_cuda and location == 'gpu':
+                out.append(tensor.cuda())
+            else:
+                out.append(tensor)
+        return out
+
+
+def move_tensor_to_gpu(tensors):
+    if not enable_cuda:
+        return tensors
+    else:
+        if isinstance(tensors, list) or isinstance(tensors, tuple):
+            out = []
+            for tensor in tensors:
+                out.append(tensor.cuda())
+            return out
+
+        else:
+            return tensors.cuda()
