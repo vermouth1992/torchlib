@@ -78,27 +78,32 @@ class Trainer(object):
             train_loss = total_loss / total
             train_accuracies = np.array(correct) / total
 
-            val_loss, val_accuracies = self.evaluate(val_data_loader, num_inputs)
+            if val_data_loader is not None:
+                val_loss, val_accuracies = self.evaluate(val_data_loader, num_inputs, desc='Validation')
 
-            if val_loss < best_val_loss:
-                if checkpoint_path:
-                    self.save_checkpoint(checkpoint_path)
-                best_val_loss = val_loss
+                if val_loss < best_val_loss:
+                    if checkpoint_path:
+                        self.save_checkpoint(checkpoint_path)
+                    best_val_loss = val_loss
 
             if verbose:
                 stats_str = []
                 stats_str.append('Train loss: {:.4f}'.format(train_loss))
-                stats_str.append('Val loss: {:.4f}'.format(val_loss))
+
+                if val_data_loader is not None:
+                    stats_str.append('Val loss: {:.4f}'.format(val_loss))
 
                 for j in range(len(self.metrics)):
                     if self.metrics[j] == 'accuracy':
                         stats_str.append('Train acc {}: {:.4f}'.format(j, train_accuracies[j]))
-                        stats_str.append('Val acc {}: {:.4f}'.format(j, val_accuracies[j]))
+
+                        if val_data_loader is not None:
+                            stats_str.append('Val acc {}: {:.4f}'.format(j, val_accuracies[j]))
 
                 stats = ' - '.join(stats_str)
                 print(stats)
 
-    def evaluate(self, data_loader, num_inputs):
+    def evaluate(self, data_loader, num_inputs, desc=None):
         with torch.no_grad():
             self.model.eval()
             total_loss = 0.0
@@ -107,7 +112,7 @@ class Trainer(object):
                 correct = [0] * len(self.metrics)
             else:
                 correct = None
-            for data_label in tqdm(data_loader):
+            for data_label in tqdm(data_loader, desc=desc):
                 data = data_label[:num_inputs]
                 labels = data_label[num_inputs:]
                 data = move_tensor_to_gpu(data)
