@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim
-from torchlib.dataset.utils import create_data_loader
+from torchlib.dataset.utils import create_tuple_data_loader
 from torchlib.trainer import Trainer
 
 
@@ -41,14 +41,14 @@ if __name__ == '__main__':
     y_regression = np.random.randn(total_num, 2).astype(np.float32)
     y_classification = np.random.randint(0, 4, size=(total_num)).astype(np.long)
 
-    train_data_loader = create_data_loader((float_input, long_input, y_regression, y_classification))
+    train_data_loader = create_tuple_data_loader(((float_input, long_input), (y_regression, y_classification)))
 
     float_input = np.random.randn(total_num, 3).astype(np.float32)
     long_input = np.random.randint(0, 6, size=(total_num)).astype(np.long)
     y_regression = np.random.randn(total_num, 2).astype(np.float32)
     y_classification = np.random.randint(0, 4, size=(total_num)).astype(np.long)
 
-    val_data_loader = create_data_loader((float_input, long_input, y_regression, y_classification))
+    val_data_loader = create_tuple_data_loader(((float_input, long_input), (y_regression, y_classification)))
 
     model = Model()
     optimizer = torch.optim.Adam(model.parameters())
@@ -58,5 +58,4 @@ if __name__ == '__main__':
     metrics = [None, 'accuracy']
 
     trainer = Trainer(model, optimizer, loss, metrics, loss_weights=(1.0, 1.0), scheduler=None)
-    trainer.fit(train_data_loader=train_data_loader, num_inputs=2, epochs=1000,
-                val_data_loader=val_data_loader)
+    trainer.fit(train_data_loader=train_data_loader, epochs=1000, val_data_loader=val_data_loader)

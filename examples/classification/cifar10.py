@@ -122,9 +122,8 @@ if __name__ == '__main__':
         else:
             pass
         classifier.fit(epochs=epoch, train_data_loader=train_loader, val_data_loader=test_loader,
-                       checkpoint_path=checkpoint_path, num_inputs=1)
-        classifier.save_checkpoint(checkpoint_path)
+                       checkpoint_path=checkpoint_path)
     else:
         classifier.load_checkpoint(checkpoint_path, all=False)
-        _, acc = classifier.evaluate(test_loader, num_inputs=1)
+        _, acc = classifier.evaluate(test_loader)
         print('Test accuracy: {:.4f}'.format(acc[0]))

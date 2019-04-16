@@ -3,10 +3,9 @@ Cifar10 dataloader
 """
 
 import torch
+from torchlib.common import enable_cuda
+from torchlib.dataset import dataset_root_path
 from torchvision import datasets, transforms
-
-from .. import dataset_root_path
-from ...common import enable_cuda
 
 
 def get_cifar10_default_transform(train, augmentation=False):
@@ -28,8 +27,7 @@ def get_cifar10_default_transform(train, augmentation=False):
 def get_cifar10_dataset(train, transform=None, augmentation=False):
     if transform is None:
         transform = get_cifar10_default_transform(train, augmentation)
-    return datasets.CIFAR10(dataset_root_path, train=train, download=False,
-                            transform=transform)
+    return datasets.CIFAR10(dataset_root_path, train=train, download=False, transform=transform)
 
 
 def get_cifar10_data_loader(train, batch_size=128, transform=None, augmentation=False):

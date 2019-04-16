@@ -30,7 +30,7 @@ class Trainer(object):
             for lo in self.loss:
                 lo.cuda()
 
-    def fit(self, train_data_loader, num_inputs, epochs, verbose=True, val_data_loader=None,
+    def fit(self, train_data_loader, epochs, verbose=True, val_data_loader=None,
             checkpoint_path=None):
         best_val_loss = np.inf
         for i in range(epochs):
@@ -39,11 +39,16 @@ class Trainer(object):
             if self.metrics is not None:
                 correct = [0] * len(self.metrics)
             for data_label in tqdm(train_data_loader, desc='Epoch {}/{}'.format(i + 1, epochs)):
-                data = data_label[:num_inputs]
-                labels = data_label[num_inputs:]
+                data, labels = data_label
                 data = move_tensor_to_gpu(data)
                 labels = move_tensor_to_gpu(labels)
+
+                if not isinstance(labels, list):
+                    labels = [labels]
+
                 self.optimizer.zero_grad()
+
+                # for compatibility with singular data and labels
                 if isinstance(data, list):
                     outputs = self.model(*data)
                 else:
@@ -79,7 +84,7 @@ class Trainer(object):
             train_accuracies = np.array(correct) / total
 
             if val_data_loader is not None:
-                val_loss, val_accuracies = self.evaluate(val_data_loader, num_inputs, desc='Validation')
+                val_loss, val_accuracies = self.evaluate(val_data_loader, desc='Validation')
 
                 if val_loss < best_val_loss:
                     if checkpoint_path:
@@ -103,7 +108,7 @@ class Trainer(object):
                 stats = ' - '.join(stats_str)
                 print(stats)
 
-    def evaluate(self, data_loader, num_inputs, desc=None):
+    def evaluate(self, data_loader, desc=None):
         with torch.no_grad():
             self.model.eval()
             total_loss = 0.0
@@ -113,10 +118,13 @@ class Trainer(object):
             else:
                 correct = None
             for data_label in tqdm(data_loader, desc=desc):
-                data = data_label[:num_inputs]
-                labels = data_label[num_inputs:]
+                data, labels = data_label
                 data = move_tensor_to_gpu(data)
                 labels = move_tensor_to_gpu(labels)
+
+                if not isinstance(labels, list):
+                    labels = [labels]
+
                 if isinstance(data, list):
                     outputs = self.model(*data)
                 else:
