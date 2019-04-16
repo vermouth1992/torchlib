@@ -90,7 +90,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', help='number of epoch', required='--train' in sys.argv)
     parser.add_argument('--train', help='train the network. Otherwise test the network', action='store_true')
     parser.add_argument('--resume', help='resume training from model or checkpoint', choices=['model', 'checkpoint'])
-    parser.add_argument('--learning_rate', '-l', help='initial learning rate', default=1e-2)
+    parser.add_argument('--learning_rate', '-l', type=float, help='initial learning rate', default=1e-2)
 
     args = vars(parser.parse_args())
     pprint.pprint(args)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 
     criterion = nn.CrossEntropyLoss()
     if args['train']:
-        lr = float(args['learning_rate'])
+        lr = args['learning_rate']
         optimizer = optim.Adam(net.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
@@ -127,4 +127,4 @@ if __name__ == '__main__':
     else:
         classifier.load_checkpoint(checkpoint_path, all=False)
         _, acc = classifier.evaluate(test_loader, num_inputs=1)
-        print('Test accuracy: {:.2f}%'.format(acc))
+        print('Test accuracy: {:.4f}'.format(acc[0]))
