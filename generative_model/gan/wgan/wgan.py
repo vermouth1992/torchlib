@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 from torchlib.common import FloatTensor, enable_cuda
-from torchlib.utils.torch_layer_utils import change_model_trainable
+from torchlib.utils.layers import change_model_trainable
 
 
 class WassersteinGAN(object):

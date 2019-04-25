@@ -5,7 +5,7 @@ Trainer for infogan
 import numpy as np
 import torch
 from torchlib.common import FloatTensor
-from torchlib.utils.plot_utils import get_visdom_line_plotter
+from torchlib.utils.plot import get_visdom_line_plotter
 from torch.autograd import Variable
 from tqdm import tqdm
 

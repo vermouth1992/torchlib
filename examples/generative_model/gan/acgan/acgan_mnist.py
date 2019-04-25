@@ -9,8 +9,8 @@ import sys
 import torch
 import torch.nn as nn
 
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
-from torchlib.utils.weight_utils import apply_weight_norm, weights_init_normal
+from torchlib.utils.layers import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
+from torchlib.utils.weight import apply_weight_norm, weights_init_normal
 from torchlib.dataset.image.mnist import get_mnist_data_loader
 from torchlib.generative_model.gan.acgan.acgan import ACGAN
 from torchlib.generative_model.gan.acgan.trainer import Trainer

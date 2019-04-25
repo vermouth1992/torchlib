@@ -13,9 +13,9 @@ import torch.nn as nn
 from torchlib.common import FloatTensor
 from torchlib.generative_model.gan.bigan_ali.bigan_ali import ALI
 from torchlib.dataset.image.mnist import get_mnist_data_loader, get_mnist_subset_data_loader
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block, \
+from torchlib.utils.layers import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block, \
     linear_bn_lrelu_dropout_block, conv2d_bn_lrelu_block
-from torchlib.utils.weight_utils import apply_weight_norm, weights_init_normal
+from torchlib.utils.weight import apply_weight_norm, weights_init_normal
 from torchlib.contrib.minibatch_discrimination import MinibatchDiscrimination
 from torchlib.generative_model.gan.bigan_ali.trainer import Trainer
 from torchlib.generative_model.gan.bigan_ali.utils import SampleImage, Reconstruction, VisualizeLatent

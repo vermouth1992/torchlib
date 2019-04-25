@@ -14,8 +14,8 @@ import torch.nn.functional as F
 import torch.optim
 from torchlib.common import FloatTensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
-from torchlib.utils.random.torch_random_utils import set_global_seeds
-from torchlib.utils.weight_utils import soft_update, hard_update
+from torchlib.utils.random import set_global_seeds
+from torchlib.utils.weight import soft_update, hard_update
 from tqdm import tqdm
 
 from .utils import SimpleSampler, SimpleReplayPool

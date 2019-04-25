@@ -13,8 +13,8 @@ from torchlib.generative_model.gan.wgan.trainer import Trainer
 from torchlib.generative_model.gan.wgan.wgan import WassersteinGAN
 from torchlib.generative_model.gan.wgan.utils import SampleImage
 
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
-from torchlib.utils.weight_utils import weights_init_normal, apply_weight_norm
+from torchlib.utils.layers import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
+from torchlib.utils.weight import weights_init_normal, apply_weight_norm
 from torchlib.dataset.image.mnist import get_mnist_data_loader
 
 

@@ -8,9 +8,9 @@ import argparse
 import pprint
 import sys
 
-from torchlib.utils.weight_utils import weights_init_normal
+from torchlib.utils.weight import weights_init_normal
 from torchlib.dataset.image.mnist import get_mnist_data_loader, get_mnist_subset_data_loader
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_dropout_block
+from torchlib.utils.layers import conv2d_bn_lrelu_dropout_block
 from torchlib.classification.classifier import Classifier
 
 class Discriminator(nn.Module):

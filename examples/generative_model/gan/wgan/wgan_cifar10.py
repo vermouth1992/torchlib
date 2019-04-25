@@ -13,8 +13,8 @@ from torchlib.generative_model.gan.wgan.trainer import Trainer
 from torchlib.generative_model.gan.wgan.wgan import WassersteinGAN
 from torchlib.generative_model.gan.wgan.utils import SampleImage
 
-from torchlib.utils.torch_layer_utils import linear_bn_lrelu_dropout_block
-from torchlib.utils.weight_utils import weights_init_normal
+from torchlib.utils.layers import linear_bn_lrelu_dropout_block
+from torchlib.utils.weight import weights_init_normal
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 
 

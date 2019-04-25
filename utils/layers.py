@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from .weight_utils import apply_weight_norm
+from .weight import apply_weight_norm
 from ..common import enable_cuda
 
 """

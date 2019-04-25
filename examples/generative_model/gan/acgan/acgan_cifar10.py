@@ -13,8 +13,8 @@ from torch.nn.utils.spectral_norm import spectral_norm
 from torchlib.generative_model.gan.acgan.acgan import ACGAN
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResBlockGAN
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, conv2d_trans_bn_relu_block
-from torchlib.utils.weight_utils import apply_weight_norm, weights_init_normal, kaiming_init, xavier_init
+from torchlib.utils.layers import conv2d_bn_lrelu_block, conv2d_trans_bn_relu_block
+from torchlib.utils.weight import apply_weight_norm, weights_init_normal, kaiming_init, xavier_init
 from torchlib.generative_model.gan.acgan.trainer import Trainer
 from torchlib.generative_model.gan.acgan.utils import SampleImage, compute_accuracy
 

@@ -15,8 +15,8 @@ from itertools import chain
 from torchlib.generative_model.gan.infogan.infogan import InfoGAN
 from torchlib.common import LongTensor, FloatTensor
 from torchlib.dataset.image.mnist import get_mnist_data_loader
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, conv2d_trans_bn_relu_block
-from torchlib.utils.weight_utils import apply_weight_norm, weights_init_normal
+from torchlib.utils.layers import conv2d_bn_lrelu_block, conv2d_trans_bn_relu_block
+from torchlib.utils.weight import apply_weight_norm, weights_init_normal
 from torchlib.generative_model.gan.infogan.trainer import Trainer
 
 

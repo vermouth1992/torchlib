@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from torchlib.common import FloatTensor, LongTensor, enable_cuda, map_location
-from torchlib.utils.random.torch_random_utils import uniform_tensor
+from torchlib.utils.random import uniform_tensor
 
 
 class InfoGAN(object):

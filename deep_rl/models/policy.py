@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 from torchlib.deep_rl.utils.distributions import FixedNormalTanh
-from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
+from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
 class BasePolicy(nn.Module):
@@ -191,7 +191,7 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
 """
 Deterministic Policy
 """
-from torchlib.utils.weight_utils import fanin_init
+from torchlib.utils.weight import fanin_init
 
 
 class ActorModule(nn.Module):

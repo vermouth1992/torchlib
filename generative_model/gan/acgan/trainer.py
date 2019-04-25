@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from .utils import compute_accuracy
 from ....common import FloatTensor, LongTensor
-from ....utils.plot_utils import get_visdom_line_plotter
+from ....utils.plot import get_visdom_line_plotter
 
 
 class Trainer(object):

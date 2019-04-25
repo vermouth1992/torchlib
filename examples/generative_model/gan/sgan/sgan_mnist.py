@@ -11,8 +11,8 @@ import torch
 import torch.nn as nn
 
 from torchlib.dataset.image.mnist import get_mnist_data_loader, get_mnist_subset_data_loader
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
-from torchlib.utils.weight_utils import apply_weight_norm, weights_init_normal
+from torchlib.utils.layers import conv2d_bn_lrelu_dropout_block, conv2d_trans_bn_lrelu_block
+from torchlib.utils.weight import apply_weight_norm, weights_init_normal
 from torchlib.generative_model.gan.sgan.sgan import SemiSupervisedGAN
 from torchlib.generative_model.gan.sgan.trainer import Trainer
 from torchlib.generative_model.gan.sgan.utils import compute_accuracy, SampleImage

@@ -8,7 +8,7 @@ from torchlib.common import FloatTensor, enable_cuda, eps
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.envs.wrappers import get_wrapper_by_name
 from torchlib.deep_rl.utils import ReplayBuffer, PrioritizedReplayBuffer, ReplayBufferFrame, LinearSchedule
-from torchlib.utils.random.torch_random_utils import set_global_seeds
+from torchlib.utils.random import set_global_seeds
 
 
 class ActorNetwork(BaseAgent):

@@ -16,7 +16,7 @@ from torch.nn.utils.weight_norm import weight_norm
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.trainer import Trainer
-from torchlib.utils.torch_layer_utils import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
+from torchlib.utils.layers import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
 from torchvision.models.resnet import BasicBlock
 
 

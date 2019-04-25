@@ -5,8 +5,8 @@ Typical modules for value functions and q values
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchlib.utils.torch_layer_utils import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
-from torchlib.utils.weight_utils import fanin_init
+from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
+from torchlib.utils.weight import fanin_init
 
 """
 Low dimensional classic control module

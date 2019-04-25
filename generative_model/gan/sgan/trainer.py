@@ -8,7 +8,7 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 from torchlib.common import FloatTensor, LongTensor
-from torchlib.utils.plot_utils import get_visdom_line_plotter
+from torchlib.utils.plot import get_visdom_line_plotter
 
 
 class Trainer(object):

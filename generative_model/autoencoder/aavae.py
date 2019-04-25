@@ -8,7 +8,7 @@ from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from torchlib.common import FloatTensor
 from torchlib.common import enable_cuda
-from torchlib.utils.torch_layer_utils import freeze, unfreeze
+from torchlib.utils.layers import freeze, unfreeze
 from tqdm import tqdm
 
 

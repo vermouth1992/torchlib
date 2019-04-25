@@ -4,7 +4,7 @@ ResNet building block
 
 import torch.nn as nn
 
-from ..utils.weight_utils import kaiming_init
+from ..utils.weight import kaiming_init
 
 
 class ResNet32x32(nn.Module):
