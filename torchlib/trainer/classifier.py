@@ -4,8 +4,10 @@ A simple classification interface
 
 import numpy as np
 import torch
-from torchlib.common import FloatTensor, LongTensor, enable_cuda, map_location
+from sklearn.metrics import f1_score, accuracy_score, recall_score
 from tqdm import tqdm
+
+from torchlib.common import FloatTensor, LongTensor, enable_cuda, map_location
 
 
 class Classifier(object):
@@ -42,14 +44,17 @@ class Classifier(object):
                 self.scheduler.step()
             train_loss = total_loss / total
             train_accuracy = correct / total * 100
-            val_loss, val_accuracy = self.evaluation(val_data_loader)
+            val_loss, val_accuracy, val_recall, val_f1 = self.evaluation(val_data_loader)
             if val_loss < best_val_loss:
                 self.save_checkpoint(checkpoint_path)
                 best_val_loss = val_loss
-            print('Train loss: {:.4f} - Train acc: {:.2f}% - Val loss: {:.4f} - Val acc: {:.2f}%'.format(train_loss,
-                                                                                                         train_accuracy,
-                                                                                                         val_loss,
-                                                                                                         val_accuracy))
+            print(
+                'Train loss: {:.4f} - Train acc: {:.2f} - Val loss: {:.4f} - Val acc: {:.2f} - Val rec: {:.2f} - Val f1: {:.2f}'.format(
+                    train_loss,
+                    train_accuracy,
+                    val_loss,
+                    val_accuracy,
+                    val_recall, val_f1))
 
     def predict(self, data):
         """ Predict the class for data
@@ -72,21 +77,27 @@ class Classifier(object):
     def evaluation(self, data_loader):
         self.model.eval()
         total_loss = 0.0
+        true_label = []
+        predicted_label = []
         total = 0
-        correct = 0
-        for data, labels in tqdm(data_loader, ascii=True):
-            data = data.type(FloatTensor)
-            labels = labels.type(LongTensor)
-            outputs = self.model(data)
-            loss = self.criterion(outputs, labels)
-            total_loss += loss.item() * labels.size(0)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+        with torch.no_grad():
+            for data, labels in tqdm(data_loader, ascii=True):
+                true_label.append(labels.numpy())
+                data = data.type(FloatTensor)
+                labels = labels.type(LongTensor)
+                outputs = self.model(data)
+                loss = self.criterion(outputs, labels)
+                total_loss += loss.item() * labels.size(0)
+                _, predicted = torch.max(outputs.data, 1)
+                predicted_label.append(predicted.numpy())
+                total += labels.size(0)
+
         avg_loss = total_loss / total
-        avg_accuracy = correct / total * 100
+        avg_accuracy = accuracy_score(true_label, predicted_label)
+        avg_recall = recall_score(true_label, predicted_label)
+        f1 = f1_score(true_label, predicted_label)
         self.model.train()
-        return avg_loss, avg_accuracy
+        return avg_loss, avg_accuracy, avg_recall, f1
 
     def save_checkpoint(self, path):
         print('Saving checkpoint to {}'.format(path))
@@ -114,6 +125,7 @@ class Classifier(object):
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             if self.scheduler:
                 self.scheduler.load_state_dict(checkpoint['scheduler'])
+
 
 class BinaryClassifier(Classifier):
     def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None):
