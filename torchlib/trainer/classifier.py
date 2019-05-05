@@ -23,11 +23,10 @@ class Classifier(object):
     def train(self, epoch, train_data_loader, val_data_loader, checkpoint_path=None):
         best_val_loss = np.inf
         for i in range(epoch):
-            print('Epoch: {}'.format(i + 1))
             total_loss = 0.0
             total = 0
             correct = 0
-            for data_label in tqdm(train_data_loader, ascii=True):
+            for data_label in tqdm(train_data_loader, desc='Epoch {}'.format(i + 1)):
                 data, labels = data_label
                 data = data.type(FloatTensor)
                 labels = labels.type(LongTensor)
@@ -43,13 +42,13 @@ class Classifier(object):
             if self.scheduler:
                 self.scheduler.step()
             train_loss = total_loss / total
-            train_accuracy = correct / total * 100
+            train_accuracy = correct / total
             val_loss, val_accuracy, val_recall, val_f1 = self.evaluation(val_data_loader)
             if val_loss < best_val_loss:
                 self.save_checkpoint(checkpoint_path)
                 best_val_loss = val_loss
             print(
-                'Train loss: {:.4f} - Train acc: {:.2f} - Val loss: {:.4f} - Val acc: {:.2f} - Val rec: {:.2f} - Val f1: {:.2f}'.format(
+                'Train loss: {:.4f} - Train acc: {:.4f} - Val loss: {:.4f} - Val acc: {:.4f} - Val rec: {:.4f} - Val f1: {:.4f}'.format(
                     train_loss,
                     train_accuracy,
                     val_loss,
@@ -81,7 +80,7 @@ class Classifier(object):
         predicted_label = []
         total = 0
         with torch.no_grad():
-            for data, labels in tqdm(data_loader, ascii=True):
+            for data, labels in tqdm(data_loader, desc='Eval'):
                 true_label.append(labels.numpy())
                 data = data.type(FloatTensor)
                 labels = labels.type(LongTensor)
@@ -89,10 +88,12 @@ class Classifier(object):
                 loss = self.criterion(outputs, labels)
                 total_loss += loss.item() * labels.size(0)
                 _, predicted = torch.max(outputs.data, 1)
-                predicted_label.append(predicted.numpy())
+                predicted_label.append(predicted.cpu().numpy())
                 total += labels.size(0)
 
         avg_loss = total_loss / total
+        true_label = np.concatenate(true_label)
+        predicted_label = np.concatenate(predicted_label)
         avg_accuracy = accuracy_score(true_label, predicted_label)
         avg_recall = recall_score(true_label, predicted_label)
         f1 = f1_score(true_label, predicted_label)
