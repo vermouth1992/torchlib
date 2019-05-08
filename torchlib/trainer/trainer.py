@@ -5,8 +5,10 @@ It can used for classification and regression. The simple classifier and regress
 
 import numpy as np
 import torch
-from torchlib.common import enable_cuda, map_location, move_tensor_to_gpu
 from tqdm import tqdm
+
+from torchlib.common import enable_cuda, map_location, move_tensor_to_gpu
+from torchlib.dataset.utils import create_data_loader
 
 
 class Trainer(object):
@@ -162,7 +164,29 @@ class Trainer(object):
             return loss, accuracies
 
     def predict(self, x, batch_size, verbose=False):
-        pass
+        if not isinstance(x, tuple):
+            x = (x,)
+
+        data_loader = create_data_loader(x, batch_size=batch_size, shuffle=False, drop_last=False)
+        if verbose:
+            data_loader = tqdm(data_loader, desc='Predicting')
+        outputs = []
+        with torch.no_grad():
+            for data in data_loader:
+                current_outputs = self.model.forward(*data)
+                if not isinstance(current_outputs, tuple):
+                    current_outputs = [current_outputs]
+
+                if len(outputs) == 0:
+                    for current_output in current_outputs:
+                        outputs.append([current_output])
+                else:
+                    for i, current_output in enumerate(current_outputs):
+                        outputs[i].append(current_output)
+
+            for i, output in enumerate(outputs):
+                outputs[i] = torch.cat(output, dim=0).cpu().numpy()
+        return outputs
 
     def save_checkpoint(self, path):
         print('Saving checkpoint to {}'.format(path))
