@@ -5,18 +5,45 @@ It can used for classification and regression. The simple classifier and regress
 
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.optim.optimizer
 from tqdm import tqdm
 
 from torchlib.common import enable_cuda, map_location, move_tensor_to_gpu
 from torchlib.dataset.utils import create_data_loader
+from torchlib.metric import get_metric_func, contains_metric
+from torchlib.models.utils import save_model
 
 
 class Trainer(object):
-    def __init__(self, model, optimizer, loss, metrics=None, loss_weights=None, scheduler=None):
-        if not isinstance(loss, list):
+    def __init__(self,
+                 model: nn.Module,
+                 optimizer: torch.optim.Optimizer,
+                 loss,
+                 metrics=None, loss_weights=None, scheduler=None):
+        """ Create a trainer for model
+
+        Args:
+            model: a pytorch module
+            optimizer: optimizer
+            loss: loss function or a list of functions for multiple outputs
+            metrics: a list of metric for each output. Each metric can also be a list.
+            loss_weights: a list of weights for each loss of each output.
+            scheduler: scheduler for optimizer
+        """
+        if isinstance(loss, nn.Module):
             loss = [loss]
-        if metrics and not isinstance(metrics, list):
+        assert isinstance(loss, list), 'Loss must be a list'
+
+        # normalize metrics to be a list of list.
+        if metrics is not None and not isinstance(metrics, list):
             metrics = [metrics]
+        for i, metric in enumerate(metrics):
+            if not isinstance(metric, list):
+                metrics[i] = [metric]
+            for m in metrics[i]:
+                assert contains_metric(m), 'Metric {} is not available'.format(m)
+
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -32,15 +59,24 @@ class Trainer(object):
             for lo in self.loss:
                 lo.cuda()
 
-    def fit(self, train_data_loader, epochs, verbose=True, val_data_loader=None,
+    def _compute_metrics(self, outputs, labels):
+        stats = []
+        for i, metric_each_output in enumerate(self.metrics):
+            current_stats = {}
+            for metric in metric_each_output:
+                metric_func = get_metric_func(metric)
+                result = metric_func(outputs[i].detach().cpu().numpy(),
+                                     labels[i].detach().cpu().numpy())
+                current_stats[metric] = result
+            stats.append(current_stats)
+        return stats
+
+    def fit(self, train_data_loader, epochs, verbose=True, val_data_loader=None, model_path=None,
             checkpoint_path=None):
         best_val_loss = np.inf
         for i in range(epochs):
-            total_loss = 0.0
-            total = 0
-            if self.metrics is not None:
-                correct = [0] * len(self.metrics)
-            for data_label in tqdm(train_data_loader, desc='Epoch {}/{}'.format(i + 1, epochs)):
+            t = tqdm(train_data_loader, desc='Epoch {}/{}'.format(i + 1, epochs))
+            for data_label in t:
                 data, labels = data_label
                 data = move_tensor_to_gpu(data)
                 labels = move_tensor_to_gpu(labels)
@@ -69,56 +105,60 @@ class Trainer(object):
 
                 loss = sum(current_loss)
 
-                # calculate stats
-                total_loss += loss.item() * labels[0].size(0)
-                total += labels[0].size(0)
-
-                for j in range(len(self.metrics)):
-                    if self.metrics[j] == 'accuracy':
-                        _, predicted = torch.max(outputs[j].data, 1)
-                        correct[j] += (predicted == labels[j]).sum().item()
-
                 loss.backward()
                 self.optimizer.step()
+
+                # gather training statistics
+                if verbose:
+                    stats_str = []
+                    stats_str.append('Train loss: {:.4f}'.format(loss.item()))
+
+                    stats = self._compute_metrics(outputs, labels)
+                    for i, stat in enumerate(stats):
+                        for metric, result in stat.items():
+                            stats_str.append('Output {} {}: {:.4f}'.format(i, metric, result))
+
+                    training_description = " - ".join(stats_str)
+                    # set log for each batch
+                    t.set_description(training_description)
+
             if self.scheduler:
                 self.scheduler.step()
-            train_loss = total_loss / total
-            train_accuracies = np.array(correct) / total
 
             if val_data_loader is not None:
-                val_loss, val_accuracies = self.evaluate(val_data_loader, desc='Validation')
+                val_loss, val_stats = self.evaluate(val_data_loader, desc='Validation')
 
+                if verbose:
+                    stats_str = []
+                    stats_str.append('Val loss: {:.4f}'.format(val_loss))
+
+                    for i, stat in enumerate(val_stats):
+                        for metric, result in stat.items():
+                            stats_str.append('Output {} {}: {:.4f}'.format(i, metric, result))
+
+                    val_description = " - ".join(stats_str)
+
+                    print(val_description)
+
+                # save best model
                 if val_loss < best_val_loss:
                     if checkpoint_path:
                         self.save_checkpoint(checkpoint_path)
+
+                    if model_path:
+                        save_model(self.model, model_path)
+
                     best_val_loss = val_loss
-
-            if verbose:
-                stats_str = []
-                stats_str.append('Train loss: {:.4f}'.format(train_loss))
-
-                if val_data_loader is not None:
-                    stats_str.append('Val loss: {:.4f}'.format(val_loss))
-
-                for j in range(len(self.metrics)):
-                    if self.metrics[j] == 'accuracy':
-                        stats_str.append('Train acc {}: {:.4f}'.format(j, train_accuracies[j]))
-
-                        if val_data_loader is not None:
-                            stats_str.append('Val acc {}: {:.4f}'.format(j, val_accuracies[j]))
-
-                stats = ' - '.join(stats_str)
-                print(stats)
 
     def evaluate(self, data_loader, desc=None):
         with torch.no_grad():
             self.model.eval()
             total_loss = 0.0
             total = 0
-            if self.metrics is not None:
-                correct = [0] * len(self.metrics)
-            else:
-                correct = None
+
+            all_outputs = []
+            all_labels = []
+
             for data_label in tqdm(data_loader, desc=desc):
                 data, labels = data_label
                 data = move_tensor_to_gpu(data)
@@ -127,6 +167,13 @@ class Trainer(object):
                 if not isinstance(labels, list):
                     labels = [labels]
 
+                if len(all_labels) == 0:
+                    for label in labels:
+                        all_labels.append([label])
+                else:
+                    for i, label in enumerate(labels):
+                        all_labels[i].append(label)
+
                 if isinstance(data, list):
                     outputs = self.model(*data)
                 else:
@@ -134,6 +181,13 @@ class Trainer(object):
 
                 if not isinstance(outputs, tuple):
                     outputs = [outputs]
+
+                if len(all_outputs) == 0:
+                    for output in outputs:
+                        all_outputs.append([output])
+                else:
+                    for i, output in enumerate(outputs):
+                        all_outputs[i].append(output)
 
                 current_loss = []
 
@@ -149,19 +203,17 @@ class Trainer(object):
                 total_loss += loss.item() * labels[0].size(0)
                 total += labels[0].size(0)
 
-                for j in range(len(self.metrics)):
-                    if self.metrics[j] == 'accuracy':
-                        _, predicted = torch.max(outputs[j].data, 1)
-                        correct[j] += (predicted == labels[j]).sum().item()
+            for i, output in enumerate(all_outputs):
+                all_outputs[i] = torch.cat(output, dim=0).cpu().numpy()
+
+            for i, label in enumerate(all_labels):
+                all_labels[i] = torch.cat(label, dim=0).cpu().numpy()
 
             loss = total_loss / total
-            if correct:
-                accuracies = np.array(correct) / total
-            else:
-                accuracies = None
+            stats = self._compute_metrics(outputs, labels)
             self.model.train()
 
-            return loss, accuracies
+            return loss, stats
 
     def predict(self, x, batch_size, verbose=False):
         if not isinstance(x, tuple):
@@ -199,18 +251,15 @@ class Trainer(object):
 
         torch.save(state, path)
 
-    def load_checkpoint(self, path, all=True):
+    def load_checkpoint(self, path):
         """ Load checkpoint. Can only load weights
 
         Args:
             path: path to the checkpoint
-            mode: 'all' or 'model'
-
         """
         print('Loading checkpoint from {}'.format(path))
         checkpoint = torch.load(path, map_location=map_location)
         self.model.load_state_dict(checkpoint['net'])
-        if all:
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
-            if self.scheduler:
-                self.scheduler.load_state_dict(checkpoint['scheduler'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if self.scheduler:
+            self.scheduler.load_state_dict(checkpoint['scheduler'])

@@ -35,7 +35,7 @@ class Model(nn.Module):
 
 
 if __name__ == '__main__':
-    total_num = 100
+    total_num = 10000
 
     float_input = np.random.randn(total_num, 3).astype(np.float32)
     long_input = np.random.randint(0, 6, size=(total_num)).astype(np.long)
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     loss = [nn.MSELoss(), nn.CrossEntropyLoss()]
 
-    metrics = [None, 'accuracy']
+    metrics = [[], 'accuracy']
 
     trainer = Trainer(model, optimizer, loss, metrics, loss_weights=(1.0, 1.0), scheduler=None)
     trainer.fit(train_data_loader=train_data_loader, epochs=10, val_data_loader=val_data_loader)
