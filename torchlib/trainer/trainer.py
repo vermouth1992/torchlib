@@ -204,13 +204,13 @@ class Trainer(object):
                 total += labels[0].size(0)
 
             for i, output in enumerate(all_outputs):
-                all_outputs[i] = torch.cat(output, dim=0).cpu().numpy()
+                all_outputs[i] = torch.cat(output, dim=0)
 
             for i, label in enumerate(all_labels):
-                all_labels[i] = torch.cat(label, dim=0).cpu().numpy()
+                all_labels[i] = torch.cat(label, dim=0)
 
             loss = total_loss / total
-            stats = self._compute_metrics(outputs, labels)
+            stats = self._compute_metrics(all_outputs, all_labels)
             self.model.train()
 
             return loss, stats

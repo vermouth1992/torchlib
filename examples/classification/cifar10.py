@@ -8,16 +8,16 @@ We try several models:
 
 import argparse
 import pprint
-import sys
 
 import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.weight_norm import weight_norm
+from torchvision.models.resnet import BasicBlock
+
 from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.trainer import Trainer
 from torchlib.utils.layers import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
-from torchvision.models.resnet import BasicBlock
 
 
 def ResNet18():
@@ -87,9 +87,10 @@ network_dict = {
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Classification for cifar10 dataset')
     parser.add_argument('--net', '-n', help='Neural network name', required=True, choices=list(network_dict.keys()))
-    parser.add_argument('--epoch', help='number of epoch', required='--train' in sys.argv)
+    parser.add_argument('--epoch', help='number of epoch', type=int, default=100)
     parser.add_argument('--train', help='train the network. Otherwise test the network', action='store_true')
     parser.add_argument('--resume', help='resume training from model or checkpoint', choices=['model', 'checkpoint'])
+    parser.add_argument('--batch_size', help='batch size', type=int, default=128)
     parser.add_argument('--learning_rate', '-l', type=float, help='initial learning rate', default=1e-2)
 
     args = vars(parser.parse_args())
@@ -99,7 +100,7 @@ if __name__ == '__main__':
 
     net = network_dict[args['net']]
 
-    test_loader = get_cifar10_data_loader(train=False, augmentation=False)
+    test_loader = get_cifar10_data_loader(train=False, augmentation=False, batch_size=args['batch_size'])
 
     criterion = nn.CrossEntropyLoss()
     if args['train']:
@@ -114,16 +115,16 @@ if __name__ == '__main__':
 
     if args['train']:
         epoch = int(args['epoch'])
-        train_loader = get_cifar10_data_loader(train=True, augmentation=True)
+        train_loader = get_cifar10_data_loader(train=True, augmentation=True, batch_size=args['batch_size'])
         if args['resume'] == 'model':
-            classifier.load_checkpoint(checkpoint_path, all=False)
+            classifier.load_checkpoint(checkpoint_path)
         elif args['resume'] == 'checkpoint':
-            classifier.load_checkpoint(checkpoint_path, all=True)
+            classifier.load_checkpoint(checkpoint_path)
         else:
             pass
         classifier.fit(epochs=epoch, train_data_loader=train_loader, val_data_loader=test_loader,
                        checkpoint_path=checkpoint_path)
     else:
-        classifier.load_checkpoint(checkpoint_path, all=False)
+        classifier.load_checkpoint(checkpoint_path)
         _, acc = classifier.evaluate(test_loader)
         print('Test accuracy: {:.4f}'.format(acc[0]))
