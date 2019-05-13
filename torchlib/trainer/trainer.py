@@ -75,7 +75,8 @@ class Trainer(object):
             checkpoint_path=None):
         best_val_loss = np.inf
         for i in range(epochs):
-            t = tqdm(train_data_loader, desc='Epoch {}/{}'.format(i + 1, epochs))
+            print('Epoch {}/{}'.format(i + 1, epochs))
+            t = tqdm(train_data_loader)
             for data_label in t:
                 data, labels = data_label
                 data = move_tensor_to_gpu(data)
