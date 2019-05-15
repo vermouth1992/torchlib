@@ -18,6 +18,7 @@ from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.trainer import Trainer
 from torchlib.utils.layers import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
+from torchlib.contrib.adabound import AdaBound, AdaBoundW
 
 
 def ResNet18():
@@ -105,7 +106,8 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
     if args['train']:
         lr = args['learning_rate']
-        optimizer = optim.Adam(net.parameters(), lr=lr)
+        # optimizer = optim.Adam(net.parameters(), lr=lr)
+        optimizer = AdaBoundW(net.parameters(), lr=lr, weight_decay=1e-4)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
         optimizer = None
@@ -117,14 +119,15 @@ if __name__ == '__main__':
         epoch = int(args['epoch'])
         train_loader = get_cifar10_data_loader(train=True, augmentation=True, batch_size=args['batch_size'])
         if args['resume'] == 'model':
-            classifier.load_checkpoint(checkpoint_path)
+            classifier.load_checkpoint(checkpoint_path, all=False)
         elif args['resume'] == 'checkpoint':
-            classifier.load_checkpoint(checkpoint_path)
+            classifier.load_checkpoint(checkpoint_path, all=True)
         else:
             pass
         classifier.fit(epochs=epoch, train_data_loader=train_loader, val_data_loader=test_loader,
                        checkpoint_path=checkpoint_path)
     else:
-        classifier.load_checkpoint(checkpoint_path)
-        _, acc = classifier.evaluate(test_loader)
-        print('Test accuracy: {:.4f}'.format(acc[0]))
+        classifier.load_checkpoint(checkpoint_path, all=False)
+        _, stats = classifier.evaluate(test_loader)
+        test_accuracy = stats[0]['accuracy']
+        print('Test accuracy: {:.4f}'.format(test_accuracy))

@@ -252,7 +252,7 @@ class Trainer(object):
 
         torch.save(state, path)
 
-    def load_checkpoint(self, path):
+    def load_checkpoint(self, path, all=False):
         """ Load checkpoint. Can only load weights
 
         Args:
@@ -261,6 +261,7 @@ class Trainer(object):
         print('Loading checkpoint from {}'.format(path))
         checkpoint = torch.load(path, map_location=map_location)
         self.model.load_state_dict(checkpoint['net'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        if self.scheduler:
-            self.scheduler.load_state_dict(checkpoint['scheduler'])
+        if all:
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            if self.scheduler:
+                self.scheduler.load_state_dict(checkpoint['scheduler'])
