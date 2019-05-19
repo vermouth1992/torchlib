@@ -34,6 +34,9 @@ def convert_numpy_to_tensor(numpy_array, location='gpu'):
                 out.append(tensor)
         return out
 
+    else:
+        raise ValueError('Unknown numpy array data type {}'.format(type(numpy_array)))
+
 
 def move_tensor_to_gpu(tensors):
     if not enable_cuda:

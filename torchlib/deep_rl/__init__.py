@@ -1,5 +1,7 @@
 import numpy as np
 from gym.envs.registration import register
+from gym.spaces import Space
+
 from torchlib.utils.random import set_global_seeds
 
 register(
@@ -26,6 +28,14 @@ class BaseAgent(object):
         This function is used for stateful agent such as recurrent agent.
         """
         pass
+
+
+class RandomAgent(BaseAgent):
+    def __init__(self, action_space: Space):
+        self.action_space = action_space
+
+    def predict(self, state):
+        return self.action_space.sample()
 
 
 def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=False, seed=1996):
