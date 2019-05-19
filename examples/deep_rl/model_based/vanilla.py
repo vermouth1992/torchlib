@@ -17,7 +17,9 @@ def make_parser():
     parser.add_argument('--num_on_policy_rollouts', type=int, default=10)
     parser.add_argument('--training_epochs', type=int, default=60)
     parser.add_argument('--training_batch_size', type=int, default=128)
+    parser.add_argument('--dataset_maxlen', type=int, default=10000)
     return parser
+
 
 if __name__ == '__main__':
 
@@ -58,6 +60,7 @@ if __name__ == '__main__':
                           horizon=args['horizon'], num_random_action_selection=args['num_random_actions'])
 
     vanilla.train(env, agent,
+                  dataset_maxlen=args['dataset_maxlen'],
                   num_init_random_rollouts=args['num_init_random_rollouts'],
                   max_rollout_length=args['max_rollout_length'],
                   num_on_policy_iters=args['num_on_policy_iters'],

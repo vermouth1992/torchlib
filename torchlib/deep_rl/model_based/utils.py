@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, deque
 
 import numpy as np
 
@@ -7,12 +7,14 @@ from torchlib.deep_rl import BaseAgent
 
 class Dataset(object):
 
-    def __init__(self):
-        self._states = []
-        self._actions = []
-        self._next_states = []
-        self._rewards = []
-        self._dones = []
+    def __init__(self, maxlen=10000):
+        self._states = deque(maxlen=maxlen)
+        self._actions = deque(maxlen=maxlen)
+        self._next_states = deque(maxlen=maxlen)
+        self._rewards = deque(maxlen=maxlen)
+        self._dones = deque(maxlen=maxlen)
+
+        self.maxlen = maxlen
 
     @property
     def is_empty(self):
