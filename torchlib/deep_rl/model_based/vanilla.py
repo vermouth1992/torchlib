@@ -14,11 +14,11 @@ import torch.nn.functional as F
 from gym import Env
 from tqdm import tqdm
 
-from torchlib.common import convert_numpy_to_tensor, map_location, enable_cuda
+from torchlib.common import convert_numpy_to_tensor, map_location, enable_cuda, move_tensor_to_gpu
 from torchlib.deep_rl import BaseAgent, RandomAgent
 from torchlib.utils import normalize, unnormalize
 from torchlib.utils.random.sampler import BaseSampler
-from .utils import Dataset, gather_rollouts
+from .utils import EpisodicDataset as Dataset, gather_rollouts
 
 
 class Agent(BaseAgent):
@@ -112,9 +112,9 @@ class Agent(BaseAgent):
             losses = []
             for states, actions, next_states, _, _ in dataset.random_iterator(batch_size=batch_size):
                 # convert to tensor
-                states = convert_numpy_to_tensor(states)
-                actions = convert_numpy_to_tensor(actions)
-                next_states = convert_numpy_to_tensor(next_states)
+                states = move_tensor_to_gpu(states)
+                actions = move_tensor_to_gpu(actions)
+                next_states = move_tensor_to_gpu(next_states)
                 # calculate loss
                 self.optimizer.zero_grad()
                 predicted_next_states = self.predict_next_states(states, actions)
