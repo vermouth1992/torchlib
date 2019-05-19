@@ -13,15 +13,15 @@ from .model_based import ModelBasedEnv
 
 class CartPoleCost(CartPoleEnv, ModelBasedEnv):
     def cost_fn(self, states, actions, next_states):
-        return self.cost_fn_v2(states, actions, next_states)
+        return self.cost_fn_v1(states, actions, next_states)
 
     def cost_fn_v1(self, states, actions, next_states):
         """ Use next_states to determine whether it is done. If it is done, set cost to be 1. Otherwise, 0 """
         x = next_states[:, 0]
         theta = next_states[:, 2]
         if isinstance(states, torch.Tensor):
-            x_done = x < -self.x_threshold | x > self.x_threshold
-            theta_done = theta < -self.theta_threshold_radians | theta > self.theta_threshold_radians
+            x_done = (x < -self.x_threshold) | (x > self.x_threshold)
+            theta_done = (theta < -self.theta_threshold_radians) | (theta > self.theta_threshold_radians)
             done = x_done | theta_done
             done = done.type(LongTensor)
         elif isinstance(states, np.ndarray):

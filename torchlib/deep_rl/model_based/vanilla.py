@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from gym import Env
 from tqdm import tqdm
 
-from torchlib.common import convert_numpy_to_tensor, map_location
+from torchlib.common import convert_numpy_to_tensor, map_location, enable_cuda
 from torchlib.deep_rl import BaseAgent, RandomAgent
 from torchlib.utils import normalize, unnormalize
 from torchlib.utils.random.sampler import BaseSampler
@@ -40,6 +40,9 @@ class Agent(BaseAgent):
         self.horizon = horizon
         self.num_random_action_selection = num_random_action_selection
         self.cost_fn = cost_fn
+
+        if enable_cuda:
+            self.dynamics_model.cuda()
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -136,14 +139,13 @@ def train(env: Env, agent: Agent,
     dataset = gather_rollouts(env, random_policy, num_init_random_rollouts, max_rollout_length)
 
     agent.set_statistics(dataset)
-    # train on initial dataset
-    agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
-                            verbose=verbose)
 
     # gather new rollouts using MPC and retrain dynamics model
     for num_iter in range(num_on_policy_iters):
         if verbose:
-            print('On policy iteration {}/{}'.format(num_iter + 1, num_on_policy_iters))
+            print('On policy iteration {}/{}. Size of dataset: {}'.format(num_iter + 1, num_on_policy_iters, len(dataset)))
+        agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
+                                verbose=verbose)
         on_policy_dataset = gather_rollouts(env, agent, num_on_policy_rollouts, max_rollout_length)
 
         # record on policy dataset statistics
@@ -156,9 +158,6 @@ def train(env: Env, agent: Agent,
             print(strings)
 
         dataset.append(on_policy_dataset)
-
-        agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
-                                verbose=verbose)
 
     if checkpoint_path:
         agent.save_checkpoint(checkpoint_path)
