@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import numpy as np
 
 from torchlib.deep_rl import BaseAgent
@@ -25,27 +27,27 @@ class Dataset(object):
 
     @property
     def state_mean(self):
-        return np.mean(self._states, axis=0)
+        return np.mean(self._states, axis=0).astype(np.float32)
 
     @property
     def state_std(self):
-        return np.std(self._states, axis=0)
+        return np.std(self._states, axis=0).astype(np.float32)
 
     @property
     def action_mean(self):
-        return np.mean(self._actions, axis=0)
+        return np.mean(self._actions, axis=0).astype(np.float32)
 
     @property
     def action_std(self):
-        return np.std(self._actions, axis=0)
+        return np.std(self._actions, axis=0).astype(np.float32)
 
     @property
     def delta_state_mean(self):
-        return np.mean(np.array(self._next_states) - np.array(self._states), axis=0)
+        return np.mean(np.array(self._next_states) - np.array(self._states), axis=0).astype(np.float32)
 
     @property
     def delta_state_std(self):
-        return np.std(np.array(self._next_states) - np.array(self._states), axis=0)
+        return np.std(np.array(self._next_states) - np.array(self._states), axis=0).astype(np.float32)
 
     ###################
     ### Adding data ###
@@ -126,6 +128,26 @@ class Dataset(object):
 
             i += batch_size
 
+    def log(self):
+        end_idxs = np.nonzero(self._dones)[0] + 1
+
+        returns = []
+
+        start_idx = 0
+        for end_idx in end_idxs:
+            rewards = self._rewards[start_idx:end_idx]
+            returns.append(np.sum(rewards))
+
+            start_idx = end_idx
+
+        stats = OrderedDict({
+            'ReturnAvg': np.mean(returns),
+            'ReturnStd': np.std(returns),
+            'ReturnMin': np.min(returns),
+            'ReturnMax': np.max(returns)
+        })
+        return stats
+
 
 def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) -> Dataset:
     dataset = Dataset()
@@ -135,9 +157,21 @@ def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) ->
         done = False
         t = 0
         while not done:
+            if state.dtype == np.float:
+                state = state.astype(np.float32)
+
             action = policy.predict(state)
+
+            if action.dtype == np.float:
+                action = action.astype(np.float32)
+
             next_state, reward, done, _ = env.step(action)
+
+            if next_state.dtype == np.float:
+                next_state = next_state.astype(np.float32)
+
             done = done or (t >= max_rollout_length)
+
             dataset.add(state, action, next_state, reward, done)
 
             state = next_state

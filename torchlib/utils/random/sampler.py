@@ -15,6 +15,29 @@ class BaseSampler(object):
         raise NotImplementedError
 
 
+class IntSampler(BaseSampler):
+    def __init__(self, low, high):
+        super(IntSampler, self).__init__()
+        self.low = low
+        self.high = high
+
+    def sample(self, shape, *args):
+        return np.random.randint(low=self.low, high=self.high, size=shape, dtype=np.int)
+
+
+class UniformSampler(BaseSampler):
+    def __init__(self, low, high):
+        super(UniformSampler, self).__init__()
+        self.low = np.array(low)
+        self.high = np.array(high)
+
+        assert self.low.shape == self.high.shape, 'The shape of low and high must be the same. Got low type {} and high type {}'.format(
+            self.low.shape, self.high.shape)
+
+    def sample(self, shape, *args):
+        return np.random.uniform(low=self.low, high=self.high, size=shape + self.low.shape)
+
+
 class GaussianSampler(BaseSampler):
     def __init__(self, mu=0.0, sigma=1.0):
         super(GaussianSampler, self).__init__()

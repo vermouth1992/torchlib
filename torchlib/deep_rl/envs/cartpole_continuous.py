@@ -3,24 +3,50 @@ Continuous cartpole
 """
 
 import numpy as np
+import torch
 from gym import spaces
 from gym.envs.classic_control.cartpole import CartPoleEnv
 
+from torchlib.common import LongTensor
 from .model_based import ModelBasedEnv
 
 
 class CartPoleCost(CartPoleEnv, ModelBasedEnv):
     def cost_fn(self, states, actions, next_states):
+        return self.cost_fn_v2(states, actions, next_states)
+
+    def cost_fn_v1(self, states, actions, next_states):
         """ Use next_states to determine whether it is done. If it is done, set cost to be 1. Otherwise, 0 """
         x = next_states[:, 0]
         theta = next_states[:, 2]
-        x_done = np.logical_or(x < -self.x_threshold, x > self.x_threshold)
-        theta_done = np.logical_or(theta < -self.theta_threshold_radians, theta > self.theta_threshold_radians)
-        done = np.logical_or(x_done, theta_done).astype(np.int)
+        if isinstance(states, torch.Tensor):
+            x_done = x < -self.x_threshold | x > self.x_threshold
+            theta_done = theta < -self.theta_threshold_radians | theta > self.theta_threshold_radians
+            done = x_done | theta_done
+            done = done.type(LongTensor)
+        elif isinstance(states, np.ndarray):
+            x_done = np.logical_or(x < -self.x_threshold, x > self.x_threshold)
+            theta_done = np.logical_or(theta < -self.theta_threshold_radians, theta > self.theta_threshold_radians)
+            done = np.logical_or(x_done, theta_done).astype(np.int)
+        else:
+            raise ValueError('Unknown data type {}'.format(type(states)))
         return done
 
+    def cost_fn_v2(self, states, actions, next_states):
+        """ Use the absolute value of x and theta. The goal is to maintain them around zero. """
+        x = next_states[:, 0]
+        theta = next_states[:, 2]
+        if isinstance(states, torch.Tensor):
+            abs = torch.abs
+        elif isinstance(states, np.ndarray):
+            abs = np.abs
+        else:
+            raise ValueError('Unknown data type {}'.format(type(states)))
 
-class CartPoleContinuous(CartPoleEnv):
+        return abs(x) / self.x_threshold + abs(theta) / self.theta_threshold_radians
+
+
+class CartPoleContinuous(CartPoleCost):
     def __init__(self):
         super(CartPoleContinuous, self).__init__()
         self.new_action_space = spaces.Box(-1, 1, shape=(1,))

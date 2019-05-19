@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from gym import Env
+from tqdm import tqdm
 
 from torchlib.common import convert_numpy_to_tensor, map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
@@ -21,7 +22,7 @@ from .utils import Dataset, gather_rollouts
 
 
 class Agent(BaseAgent):
-    def __init__(self, dynamic_model: nn.Module, optimizer,
+    def __init__(self, dynamics_model: nn.Module, optimizer,
                  action_sampler: BaseSampler,
                  cost_fn,
                  horizon=15,
@@ -33,7 +34,7 @@ class Agent(BaseAgent):
         self.delta_state_mean = None
         self.delta_state_std = None
 
-        self.dynamic_model = dynamic_model
+        self.dynamics_model = dynamics_model
         self.optimizer = optimizer
         self.action_sampler = action_sampler
         self.horizon = horizon
@@ -43,7 +44,7 @@ class Agent(BaseAgent):
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
         states = {
-            'dynamic_model': self.dynamic_model.state_dict(),
+            'dynamic_model': self.dynamics_model.state_dict(),
             'state_mean': self.state_mean,
             'state_std': self.state_std,
             'action_mean': self.action_mean,
@@ -55,7 +56,7 @@ class Agent(BaseAgent):
 
     def load_checkpoint(self, checkpoint_path):
         states = torch.load(checkpoint_path, map_location=map_location)
-        self.dynamic_model.load_state_dict(states['dynamic_model'])
+        self.dynamics_model.load_state_dict(states['dynamic_model'])
         self.state_mean = states['state_mean']
         self.state_std = states['state_std']
         self.action_mean = states['action_mean']
@@ -73,17 +74,20 @@ class Agent(BaseAgent):
 
     def predict(self, state):
         states = np.expand_dims(state, axis=0)
-        actions = self.action_sampler.sample((self.horizon, self.num_random_action_selection))
+        actions = self.action_sampler.sample((self.horizon, self.num_random_action_selection)).astype(np.float32)
         states = np.tile(states, (self.num_random_action_selection, 1))
-        cost = 0
+        states = convert_numpy_to_tensor(states)
+        actions = convert_numpy_to_tensor(actions)
 
         with torch.no_grad():
+            cost = 0
             for i in range(self.horizon):
                 next_states = self.predict_next_states(states, actions[i])
                 cost += self.cost_fn(states, actions[i], next_states)
                 states = next_states
 
-            best_action = actions[0, np.argmin(cost, axis=0)]
+            best_action = actions[0, torch.argmin(cost, dim=0)]
+            best_action = best_action.cpu().numpy()
             return best_action
 
     def predict_next_states(self, states, actions):
@@ -91,13 +95,18 @@ class Agent(BaseAgent):
         states = normalize(states, self.state_mean, self.state_std)
         actions = normalize(actions, self.action_mean, self.action_std)
 
-        predicted_delta_state_normalized = self.dynamic_model.forward(states, actions)
+        predicted_delta_state_normalized = self.dynamics_model.forward(states, actions)
         predicted_delta_state = unnormalize(predicted_delta_state_normalized, self.delta_state_mean,
                                             self.delta_state_std)
         return states + predicted_delta_state
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
-        for i in range(epoch):
+        t = range(epoch)
+        if verbose:
+            t = tqdm(t)
+
+        for i in t:
+            losses = []
             for states, actions, next_states, _, _ in dataset.random_iterator(batch_size=batch_size):
                 # convert to tensor
                 states = convert_numpy_to_tensor(states)
@@ -109,9 +118,8 @@ class Agent(BaseAgent):
                 loss = F.mse_loss(predicted_next_states, next_states)
                 loss.backward()
                 self.optimizer.step()
-
-                if verbose:
-                    print('Epoch {}/{}: Loss: {:.4f}'.format(i + 1, epoch, loss.item()))
+                losses.append(loss.item())
+            t.set_description('Epoch {}/{}: Avg loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
 
 
 def train(env: Env, agent: Agent,
@@ -134,9 +142,18 @@ def train(env: Env, agent: Agent,
 
     # gather new rollouts using MPC and retrain dynamics model
     for num_iter in range(num_on_policy_iters):
+        if verbose:
+            print('On policy iteration {}/{}'.format(num_iter + 1, num_on_policy_iters))
         on_policy_dataset = gather_rollouts(env, agent, num_on_policy_rollouts, max_rollout_length)
 
         # record on policy dataset statistics
+        if verbose:
+            stats = on_policy_dataset.log()
+            strings = []
+            for key, value in stats.items():
+                strings.append(key + ": {:.4f}".format(value))
+            strings = " - ".join(strings)
+            print(strings)
 
         dataset.append(on_policy_dataset)
 
