@@ -18,6 +18,20 @@ register(
     reward_threshold=475.0,
 )
 
+register(
+    id='CartPoleCost-v0',
+    entry_point='torchlib.deep_rl.envs:CartPoleCost',
+    max_episode_steps=200,
+    reward_threshold=195.0,
+)
+
+register(
+    id='CartPoleCost-v1',
+    entry_point='torchlib.deep_rl.envs:CartPoleCost',
+    max_episode_steps=500,
+    reward_threshold=475.0,
+)
+
 
 class BaseAgent(object):
     def predict(self, state):

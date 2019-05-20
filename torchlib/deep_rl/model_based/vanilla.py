@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from gym import Env
 from tqdm import tqdm
 
-from torchlib.common import convert_numpy_to_tensor, map_location, enable_cuda, move_tensor_to_gpu
+from torchlib.common import convert_numpy_to_tensor, map_location, enable_cuda, move_tensor_to_gpu, LongTensor
 from torchlib.deep_rl import BaseAgent, RandomAgent
 from torchlib.utils import normalize, unnormalize
 from torchlib.utils.random.sampler import BaseSampler
@@ -70,14 +70,18 @@ class Agent(BaseAgent):
     def set_statistics(self, initial_dataset: Dataset):
         self.state_mean = convert_numpy_to_tensor(initial_dataset.state_mean)
         self.state_std = convert_numpy_to_tensor(initial_dataset.state_std)
-        self.action_mean = convert_numpy_to_tensor(initial_dataset.action_mean)
-        self.action_std = convert_numpy_to_tensor(initial_dataset.action_std)
+        if self.dynamics_model.discrete:
+            self.action_mean = None
+            self.action_std = None
+        else:
+            self.action_mean = convert_numpy_to_tensor(initial_dataset.action_mean)
+            self.action_std = convert_numpy_to_tensor(initial_dataset.action_std)
         self.delta_state_mean = convert_numpy_to_tensor(initial_dataset.delta_state_mean)
         self.delta_state_std = convert_numpy_to_tensor(initial_dataset.delta_state_std)
 
     def predict(self, state):
         states = np.expand_dims(state, axis=0)
-        actions = self.action_sampler.sample((self.horizon, self.num_random_action_selection)).astype(np.float32)
+        actions = self.action_sampler.sample((self.horizon, self.num_random_action_selection))
         states = np.tile(states, (self.num_random_action_selection, 1))
         states = convert_numpy_to_tensor(states)
         actions = convert_numpy_to_tensor(actions)
@@ -96,7 +100,9 @@ class Agent(BaseAgent):
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
         states = normalize(states, self.state_mean, self.state_std)
-        actions = normalize(actions, self.action_mean, self.action_std)
+
+        if not self.dynamics_model.discrete:
+            actions = normalize(actions, self.action_mean, self.action_std)
 
         predicted_delta_state_normalized = self.dynamics_model.forward(states, actions)
         predicted_delta_state = unnormalize(predicted_delta_state_normalized, self.delta_state_mean,
@@ -122,7 +128,8 @@ class Agent(BaseAgent):
                 loss.backward()
                 self.optimizer.step()
                 losses.append(loss.item())
-            t.set_description('Epoch {}/{}: Avg loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
+            if verbose:
+                t.set_description('Epoch {}/{} - Avg loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
 
 
 def train(env: Env, agent: Agent,
@@ -148,8 +155,8 @@ def train(env: Env, agent: Agent,
     # gather new rollouts using MPC and retrain dynamics model
     for num_iter in range(num_on_policy_iters):
         if verbose:
-            print('On policy iteration {}/{}. Size of dataset: {}'.format(num_iter + 1, num_on_policy_iters,
-                                                                          len(dataset)))
+            print('On policy iteration {}/{}. Size of dataset: {}. Number of trajectories: {}'.format(
+                num_iter + 1, num_on_policy_iters, len(dataset), dataset.num_trajectories))
         agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
                                 verbose=verbose)
         on_policy_dataset = gather_rollouts(env, agent, num_on_policy_rollouts, max_rollout_length)

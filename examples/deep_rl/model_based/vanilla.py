@@ -34,8 +34,8 @@ if __name__ == '__main__':
     import gym
     import torch.optim
     from torchlib import deep_rl
-    from torchlib.deep_rl.models.dynamics import MLPDynamics
-    from torchlib.utils.random.sampler import UniformSampler
+    from torchlib.deep_rl.models.dynamics import ContinuousMLPDynamics, DiscreteMLPDynamics
+    from torchlib.utils.random.sampler import UniformSampler, IntSampler
     import torchlib.deep_rl.model_based.vanilla as vanilla
 
     __all__ = ['deep_rl']
@@ -46,14 +46,20 @@ if __name__ == '__main__':
         __all__.append('roboschool')
 
     env = gym.make(args['env_name'])
-    # discrete = isinstance(env.action_space, gym.spaces.Discrete)
-    assert isinstance(env.action_space, gym.spaces.Box), 'Only focus on continuous action space'
+    discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
-    ac_dim = env.action_space.shape[0]
 
-    dynamics_model = MLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
+    if discrete:
+        ac_dim = env.action_space.n
+        dynamics_model = DiscreteMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
+        action_sampler = IntSampler(low=ac_dim)
+    else:
+        ac_dim = env.action_space.shape[0]
+        dynamics_model = ContinuousMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
+        action_sampler = UniformSampler(low=env.action_space.low, high=env.action_space.high)
+
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
-    action_sampler = UniformSampler(low=env.action_space.low, high=env.action_space.high)
+
 
     agent = vanilla.Agent(dynamics_model=dynamics_model, optimizer=optimizer,
                           action_sampler=action_sampler, cost_fn=env.cost_fn,

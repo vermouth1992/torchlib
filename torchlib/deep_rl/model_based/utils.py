@@ -152,6 +152,7 @@ class Dataset(object):
 
 Transition = namedtuple('Transition', ('state', 'action', 'reward'))
 
+
 class EpisodicDataset(Dataset):
     def __init__(self, maxlen=10000):
         self.memory = deque()
@@ -165,6 +166,10 @@ class EpisodicDataset(Dataset):
 
     def __len__(self):
         return self.size
+
+    @property
+    def num_trajectories(self):
+        return len(self.memory)
 
     @property
     def is_empty(self):
@@ -189,14 +194,14 @@ class EpisodicDataset(Dataset):
         actions = []
         for trajectory in self.memory:
             actions.append(trajectory.action)
-        return np.mean(np.concatenate(actions, axis=0), axis=0)
+        return np.mean(np.concatenate(actions, axis=0), axis=0).astype(np.float32)
 
     @property
     def action_std(self):
         actions = []
         for trajectory in self.memory:
             actions.append(trajectory.action)
-        return np.std(np.concatenate(actions, axis=0), axis=0)
+        return np.std(np.concatenate(actions, axis=0), axis=0).astype(np.float32)
 
     @property
     def delta_state_mean(self):
@@ -216,7 +221,10 @@ class EpisodicDataset(Dataset):
 
     def add(self, state, action, next_state, reward, done):
         self._states.append(np.ravel(state))
-        self._actions.append(np.ravel(action))
+        if isinstance(action, np.ndarray) and len(action.shape) != 0:
+            self._actions.append(np.ravel(action))
+        else:
+            self._actions.append(action)
         self._rewards.append(np.ravel(reward))
 
         self.size += 1
@@ -229,7 +237,6 @@ class EpisodicDataset(Dataset):
             self._states = []
             self._actions = []
             self._rewards = []
-
 
     def append(self, other_dataset):
         self.memory.extend(other_dataset.memory)
@@ -275,8 +282,6 @@ class EpisodicDataset(Dataset):
 
         return data_loader
 
-
-
     def log(self):
         returns = []
 
@@ -305,7 +310,7 @@ def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) ->
 
             action = policy.predict(state)
 
-            if action.dtype == np.float:
+            if isinstance(action, np.ndarray) and action.dtype == np.float:
                 action = action.astype(np.float32)
 
             next_state, reward, done, _ = env.step(action)

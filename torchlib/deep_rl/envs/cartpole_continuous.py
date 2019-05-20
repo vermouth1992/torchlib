@@ -13,7 +13,7 @@ from .model_based import ModelBasedEnv
 
 class CartPoleCost(CartPoleEnv, ModelBasedEnv):
     def cost_fn(self, states, actions, next_states):
-        return self.cost_fn_v1(states, actions, next_states)
+        return self.cost_fn_v2(states, actions, next_states)
 
     def cost_fn_v1(self, states, actions, next_states):
         """ Use next_states to determine whether it is done. If it is done, set cost to be 1. Otherwise, 0 """

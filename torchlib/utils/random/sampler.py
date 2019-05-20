@@ -16,13 +16,13 @@ class BaseSampler(object):
 
 
 class IntSampler(BaseSampler):
-    def __init__(self, low, high):
+    def __init__(self, low, high=None):
         super(IntSampler, self).__init__()
         self.low = low
         self.high = high
 
     def sample(self, shape, *args):
-        return np.random.randint(low=self.low, high=self.high, size=shape, dtype=np.int)
+        return np.random.randint(low=self.low, high=self.high, size=shape, dtype=np.int64)
 
 
 class UniformSampler(BaseSampler):
@@ -35,7 +35,7 @@ class UniformSampler(BaseSampler):
             self.low.shape, self.high.shape)
 
     def sample(self, shape, *args):
-        return np.random.uniform(low=self.low, high=self.high, size=shape + self.low.shape)
+        return np.random.uniform(low=self.low, high=self.high, size=shape + self.low.shape).astype(np.float32)
 
 
 class GaussianSampler(BaseSampler):
