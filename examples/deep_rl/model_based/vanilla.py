@@ -35,8 +35,11 @@ if __name__ == '__main__':
     import torch.optim
     from torchlib import deep_rl
     from torchlib.deep_rl.models.dynamics import ContinuousMLPDynamics, DiscreteMLPDynamics
+    from torchlib.deep_rl.model_based.model import DeterministicModel
+    from torchlib.deep_rl.model_based.planner import BestRandomActionPlanner
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
-    import torchlib.deep_rl.model_based.vanilla as vanilla
+    from torchlib.deep_rl.model_based.agent import VanillaAgent
+    import torchlib.deep_rl.model_based.trainer as trainer
 
     __all__ = ['deep_rl']
 
@@ -60,12 +63,13 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
+    model = DeterministicModel(dynamics_model=dynamics_model, optimizer=optimizer)
+    planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn,
+                                      horizon=args['horizon'],
+                                      num_random_action_selection=args['num_random_actions'])
+    agent = VanillaAgent(model=model, planner=planner)
 
-    agent = vanilla.Agent(dynamics_model=dynamics_model, optimizer=optimizer,
-                          action_sampler=action_sampler, cost_fn=env.cost_fn,
-                          horizon=args['horizon'], num_random_action_selection=args['num_random_actions'])
-
-    vanilla.train(env, agent,
+    trainer.train(env, agent,
                   dataset_maxlen=args['dataset_maxlen'],
                   num_init_random_rollouts=args['num_init_random_rollouts'],
                   max_rollout_length=args['max_rollout_length'],
