@@ -11,7 +11,7 @@ from torchlib.common import LongTensor
 from .model_based import ModelBasedEnv
 
 
-class CartPoleCost(CartPoleEnv, ModelBasedEnv):
+class CartPoleEnvCost(CartPoleEnv, ModelBasedEnv):
     def cost_fn(self, states, actions, next_states):
         return self.cost_fn_v2(states, actions, next_states)
 
@@ -46,9 +46,9 @@ class CartPoleCost(CartPoleEnv, ModelBasedEnv):
         return abs(x) / self.x_threshold + abs(theta) / self.theta_threshold_radians
 
 
-class CartPoleContinuous(CartPoleCost):
+class CartPoleEnvContinuous(CartPoleEnvCost):
     def __init__(self):
-        super(CartPoleContinuous, self).__init__()
+        super(CartPoleEnvContinuous, self).__init__()
         self.new_action_space = spaces.Box(-1, 1, shape=(1,))
         self.raw_action_space = spaces.Discrete(2)
         self.action_space = self.new_action_space
@@ -62,6 +62,6 @@ class CartPoleContinuous(CartPoleCost):
             action = 0
 
         self.action_space = self.raw_action_space
-        result = super(CartPoleContinuous, self).step(action)
+        result = super(CartPoleEnvContinuous, self).step(action)
         self.action_space = self.new_action_space
         return result

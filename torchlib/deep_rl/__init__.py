@@ -6,30 +6,36 @@ from torchlib.utils.random import set_global_seeds
 
 register(
     id='CartPoleContinuous-v0',
-    entry_point='torchlib.deep_rl.envs:CartPoleContinuous',
+    entry_point='torchlib.deep_rl.envs:CartPoleEnvContinuous',
     max_episode_steps=200,
     reward_threshold=195.0,
 )
 
 register(
     id='CartPoleContinuous-v1',
-    entry_point='torchlib.deep_rl.envs:CartPoleContinuous',
+    entry_point='torchlib.deep_rl.envs:CartPoleEnvContinuous',
     max_episode_steps=500,
     reward_threshold=475.0,
 )
 
 register(
     id='CartPoleCost-v0',
-    entry_point='torchlib.deep_rl.envs:CartPoleCost',
+    entry_point='torchlib.deep_rl.envs:CartPoleEnvCost',
     max_episode_steps=200,
     reward_threshold=195.0,
 )
 
 register(
     id='CartPoleCost-v1',
-    entry_point='torchlib.deep_rl.envs:CartPoleCost',
+    entry_point='torchlib.deep_rl.envs:CartPoleEnvCost',
     max_episode_steps=500,
     reward_threshold=475.0,
+)
+
+register(
+    id='PendulumCost-v0',
+    entry_point='torchlib.deep_rl.envs:PendulumEnvCost',
+    max_episode_steps=200,
 )
 
 
