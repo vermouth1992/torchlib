@@ -1,8 +1,9 @@
-from gym.envs.classic_control.pendulum import PendulumEnv
-from gym import spaces
 import numpy as np
-from .model_based import ModelBasedEnv
 import torch
+from gym import spaces
+from gym.envs.classic_control.pendulum import PendulumEnv
+
+from .model_based import ModelBasedEnv
 
 
 class PendulumEnvCost(PendulumEnv, ModelBasedEnv):
