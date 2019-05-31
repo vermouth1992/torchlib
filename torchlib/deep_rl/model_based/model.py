@@ -81,7 +81,7 @@ class DeterministicModel(Model):
                 self.optimizer.step()
                 losses.append(loss.item())
             if verbose:
-                t.set_description('Epoch {}/{} - Avg loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
+                t.set_description('Epoch {}/{} - Avg model loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
 
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'

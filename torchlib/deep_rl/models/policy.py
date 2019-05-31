@@ -8,7 +8,9 @@ The architecture follows the same rule:
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import Categorical
+
 from torchlib.deep_rl.utils.distributions import FixedNormalTanh
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
@@ -195,7 +197,10 @@ from torchlib.utils.weight import fanin_init
 
 
 class ActorModule(nn.Module):
-    def __init__(self, size, state_dim, action_dim):
+    """
+    Actor module for various algorithms including DDPG and Imitation Learning
+    """
+    def __init__(self, size, state_dim, action_dim, output_activation=torch.tanh):
         super(ActorModule, self).__init__()
         self.fc1 = nn.Linear(state_dim, size)
         fanin_init(self.fc1)
@@ -203,6 +208,7 @@ class ActorModule(nn.Module):
         fanin_init(self.fc2)
         self.fc3 = nn.Linear(size, action_dim)
         torch.nn.init.uniform_(self.fc3.weight.data, -3e-3, 3e-3)
+        self.output_activation = output_activation
 
     def forward(self, x):
         x = self.fc1(x)
@@ -210,5 +216,6 @@ class ActorModule(nn.Module):
         x = self.fc2(x)
         x = F.relu(x)
         x = self.fc3(x)
-        x = torch.tanh(x)
+        if self.output_activation is not None:
+            x = self.output_activation(x)
         return x

@@ -25,6 +25,8 @@ def train(env: Env, agent: VanillaAgent,
 
     agent.set_statistics(dataset)
 
+    agent.train()
+
     # gather new rollouts using MPC and retrain dynamics model
     for num_iter in range(num_on_policy_iters):
         if verbose:

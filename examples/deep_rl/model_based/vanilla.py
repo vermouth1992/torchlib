@@ -18,6 +18,7 @@ def make_parser():
     parser.add_argument('--training_epochs', type=int, default=60)
     parser.add_argument('--training_batch_size', type=int, default=128)
     parser.add_argument('--dataset_maxlen', type=int, default=10000)
+    parser.add_argument('--dagger', action='store_true')
     return parser
 
 
@@ -37,8 +38,10 @@ if __name__ == '__main__':
     from torchlib.deep_rl.models.dynamics import ContinuousMLPDynamics, DiscreteMLPDynamics
     from torchlib.deep_rl.model_based.model import DeterministicModel
     from torchlib.deep_rl.model_based.planner import BestRandomActionPlanner
+    from torchlib.deep_rl.model_based.policy import DiscretePolicy, ContinuousPolicy
+    from torchlib.deep_rl.models.policy import ActorModule
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
-    from torchlib.deep_rl.model_based.agent import VanillaAgent
+    from torchlib.deep_rl.model_based.agent import VanillaAgent, DAggerAgent
     import torchlib.deep_rl.model_based.trainer as trainer
 
     __all__ = ['deep_rl']
@@ -52,14 +55,26 @@ if __name__ == '__main__':
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
 
+    dagger = args['dagger']
+
     if discrete:
         ac_dim = env.action_space.n
         dynamics_model = DiscreteMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
         action_sampler = IntSampler(low=ac_dim)
+        if dagger:
+            actor = ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim, output_activation=None)
+            actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
+            policy = DiscretePolicy(actor, actor_optimizer)
     else:
         ac_dim = env.action_space.shape[0]
+        print('Action high: {}. Action low: {}'.format(env.action_space.high, env.action_space.low))
         dynamics_model = ContinuousMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
         action_sampler = UniformSampler(low=env.action_space.low, high=env.action_space.high)
+
+        if dagger:
+            actor = ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim, output_activation=torch.tanh)
+            actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
+            policy = ContinuousPolicy(actor, actor_optimizer)
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
@@ -67,7 +82,11 @@ if __name__ == '__main__':
     planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn,
                                       horizon=args['horizon'],
                                       num_random_action_selection=args['num_random_actions'])
-    agent = VanillaAgent(model=model, planner=planner)
+
+    if dagger:
+        agent = DAggerAgent(model=model, planner=planner, policy=policy, policy_data_size=args['dataset_maxlen'])
+    else:
+        agent = VanillaAgent(model=model, planner=planner)
 
     trainer.train(env, agent,
                   dataset_maxlen=args['dataset_maxlen'],

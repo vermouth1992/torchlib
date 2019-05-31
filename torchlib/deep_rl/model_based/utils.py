@@ -2,8 +2,8 @@ from collections import OrderedDict, deque, namedtuple
 
 import numpy as np
 
-from torchlib.deep_rl import BaseAgent
 from torchlib.dataset.utils import create_data_loader
+from torchlib.deep_rl import BaseAgent
 
 
 class Dataset(object):
@@ -151,6 +151,7 @@ class Dataset(object):
 
 
 Transition = namedtuple('Transition', ('state', 'action', 'reward'))
+ImitationTransition = namedtuple('ImitationTransition', ('state', 'action', 'reward', 'best_action'))
 
 
 class EpisodicDataset(Dataset):
