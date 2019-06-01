@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor
+from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor, enable_cuda
 from torchlib.dataset.utils import create_data_loader
 
 
@@ -21,6 +21,9 @@ class ImitationPolicy(object):
         self.state_std = None
 
         self.loss_fn = None
+
+        if enable_cuda:
+            self.model.cuda()
 
     @property
     def state_dict(self):
@@ -88,7 +91,6 @@ class DiscretePolicy(ImitationPolicy):
         state = np.expand_dims(state, axis=0)
         with torch.no_grad():
             state = convert_numpy_to_tensor(state)
-            state = move_tensor_to_gpu(state)
             state = (state - self.state_mean) / self.state_std
             action = self.model.forward(state)
             action = torch.argmax(action, dim=-1)
@@ -109,7 +111,6 @@ class ContinuousPolicy(ImitationPolicy):
         state = np.expand_dims(state, axis=0)
         with torch.no_grad():
             state = convert_numpy_to_tensor(state)
-            state = move_tensor_to_gpu(state)
             state = (state - self.state_mean) / self.state_std
             action = self.model.forward(state)
         return action.cpu().numpy()[0]

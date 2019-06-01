@@ -5,7 +5,7 @@ Planner for model-based RL
 import numpy as np
 import torch
 
-from torchlib.common import convert_numpy_to_tensor
+from torchlib.common import convert_numpy_to_tensor, FloatTensor
 from torchlib.utils.random.sampler import BaseSampler
 from .model import Model
 
@@ -38,7 +38,7 @@ class BestRandomActionPlanner(Planner):
         actions = convert_numpy_to_tensor(actions)
 
         with torch.no_grad():
-            cost = torch.zeros(size=(self.num_random_action_selection,))
+            cost = torch.zeros(size=(self.num_random_action_selection,)).type(FloatTensor)
             for i in range(self.horizon):
                 next_states = self.model.predict_next_states(states, actions[i])
                 cost += self.cost_fn(states, actions[i], next_states)
