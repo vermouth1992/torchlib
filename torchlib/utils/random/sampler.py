@@ -18,8 +18,12 @@ class BaseSampler(object):
 class IntSampler(BaseSampler):
     def __init__(self, low, high=None):
         super(IntSampler, self).__init__()
-        self.low = low
-        self.high = high
+        if high is None:
+            self.low = 0
+            self.high = low
+        else:
+            self.low = low
+            self.high = high
 
     def sample(self, shape, *args):
         return np.random.randint(low=self.low, high=self.high, size=shape, dtype=np.int64)

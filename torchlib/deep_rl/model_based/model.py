@@ -3,6 +3,7 @@ Models for model-based RL
 """
 
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -19,7 +20,19 @@ class Model(object):
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         raise NotImplementedError
 
+    def predict_next_state(self, state, action):
+        states = np.expand_dims(state, axis=0)
+        actions = np.expand_dims(action, axis=0)
+        states = convert_numpy_to_tensor(states)
+        actions = convert_numpy_to_tensor(actions)
+        with torch.no_grad():
+            next_state = self.predict_next_states(states, actions).cpu().numpy()[0]
+        return next_state
+
     def predict_next_states(self, states, actions):
+        raise NotImplementedError
+
+    def cost_fn(self, states, actions):
         raise NotImplementedError
 
     @property

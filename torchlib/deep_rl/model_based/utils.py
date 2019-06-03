@@ -220,6 +220,20 @@ class EpisodicDataset(Dataset):
             delta_states.append(states[1:] - states[:-1])
         return np.std(np.concatenate(delta_states, axis=0), axis=0)
 
+    @property
+    def reward_mean(self):
+        rewards = []
+        for trajectory in self.memory:
+            rewards.append(trajectory.reward)
+        return np.mean(np.concatenate(rewards, axis=0), axis=0).astype(np.float32)
+
+    @property
+    def reward_std(self):
+        rewards = []
+        for trajectory in self.memory:
+            rewards.append(trajectory.reward)
+        return np.std(np.concatenate(rewards, axis=0), axis=0).astype(np.float32)
+
     def add(self, state, action, next_state, reward, done):
         self._states.append(np.ravel(state))
         if isinstance(action, np.ndarray) and len(action.shape) != 0:
