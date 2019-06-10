@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim.optimizer
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from torchlib.common import enable_cuda, map_location, move_tensor_to_gpu
 from torchlib.dataset.utils import create_data_loader
@@ -38,11 +38,6 @@ class Trainer(object):
         # normalize metrics to be a list of list.
         if metrics is not None and not isinstance(metrics, list):
             metrics = [metrics]
-        for i, metric in enumerate(metrics):
-            if not isinstance(metric, list):
-                metrics[i] = [metric]
-            for m in metrics[i]:
-                assert contains_metric(m), 'Metric {} is not available'.format(m)
 
         self.model = model
         self.optimizer = optimizer
@@ -50,6 +45,11 @@ class Trainer(object):
         self.loss = loss
         if metrics is not None:
             assert len(metrics) == len(loss), "The number of losses must be equal to the number of metrics."
+            for i, metric in enumerate(metrics):
+                if not isinstance(metric, list):
+                    metrics[i] = [metric]
+                for m in metrics[i]:
+                    assert contains_metric(m), 'Metric {} is not available'.format(m)
         else:
             metrics = []
         self.metrics = metrics
