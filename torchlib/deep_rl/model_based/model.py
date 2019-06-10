@@ -98,12 +98,12 @@ class DeterministicModel(Model):
 
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
-        states = normalize(states, self.state_mean, self.state_std)
+        states_normalized = normalize(states, self.state_mean, self.state_std)
 
         if not self.dynamics_model.discrete:
             actions = normalize(actions, self.action_mean, self.action_std)
 
-        predicted_delta_state_normalized = self.dynamics_model.forward(states, actions)
+        predicted_delta_state_normalized = self.dynamics_model.forward(states_normalized, actions)
         predicted_delta_state = unnormalize(predicted_delta_state_normalized, self.delta_state_mean,
                                             self.delta_state_std)
         return states + predicted_delta_state
