@@ -71,62 +71,77 @@ class Trainer(object):
             stats.append(current_stats)
         return stats
 
+    def train_on_data_loader(self, train_data_loader, verbose=True):
+        """ Train on data_loader for one epoch
+
+        Args:
+            train_data_loader: training data loader
+            verbose: verbose mode or not
+
+        Returns: training loss list at each step
+
+        """
+        self.model.train()
+        if verbose:
+            t = tqdm(train_data_loader)
+        else:
+            t = train_data_loader
+        train_loss = []
+        for data_label in t:
+            data, labels = data_label
+            data = move_tensor_to_gpu(data)
+            labels = move_tensor_to_gpu(labels)
+
+            if not isinstance(labels, list):
+                labels = [labels]
+
+            self.optimizer.zero_grad()
+
+            # for compatibility with singular data and labels
+            if isinstance(data, list):
+                outputs = self.model(*data)
+            else:
+                outputs = self.model(data)
+
+            if not isinstance(outputs, tuple):
+                outputs = [outputs]
+
+            current_loss = []
+
+            for j in range(len(outputs)):
+                loss = self.loss[j](outputs[j], labels[j])
+                if self.loss_weights is not None:
+                    loss = loss * self.loss_weights[j]
+                current_loss.append(loss)
+
+            loss = sum(current_loss)
+
+            loss.backward()
+            self.optimizer.step()
+            # gather training statistics
+            if verbose:
+                stats_str = []
+                stats_str.append('Train loss: {:.4f}'.format(loss.item()))
+
+                stats = self._compute_metrics(outputs, labels)
+                for i, stat in enumerate(stats):
+                    for metric, result in stat.items():
+                        stats_str.append('Output {} {}: {:.4f}'.format(i, metric, result))
+
+                training_description = " - ".join(stats_str)
+                # set log for each batch
+                t.set_description(training_description)
+
+            train_loss.append(loss.item())
+        return train_loss
+
+
     def fit(self, train_data_loader, epochs, verbose=True, val_data_loader=None, model_path=None,
             checkpoint_path=None):
-        self.model.train()
         best_val_loss = np.inf
         for i in range(epochs):
             print('Epoch {}/{}'.format(i + 1, epochs))
-            t = tqdm(train_data_loader)
-            train_loss = []
-            for data_label in t:
-                data, labels = data_label
-                data = move_tensor_to_gpu(data)
-                labels = move_tensor_to_gpu(labels)
-
-                if not isinstance(labels, list):
-                    labels = [labels]
-
-                self.optimizer.zero_grad()
-
-                # for compatibility with singular data and labels
-                if isinstance(data, list):
-                    outputs = self.model(*data)
-                else:
-                    outputs = self.model(data)
-
-                if not isinstance(outputs, tuple):
-                    outputs = [outputs]
-
-                current_loss = []
-
-                for j in range(len(outputs)):
-                    loss = self.loss[j](outputs[j], labels[j])
-                    if self.loss_weights is not None:
-                        loss = loss * self.loss_weights[j]
-                    current_loss.append(loss)
-
-                loss = sum(current_loss)
-
-                loss.backward()
-                self.optimizer.step()
-
-                # gather training statistics
-                if verbose:
-                    stats_str = []
-                    stats_str.append('Train loss: {:.4f}'.format(loss.item()))
-
-                    stats = self._compute_metrics(outputs, labels)
-                    for i, stat in enumerate(stats):
-                        for metric, result in stat.items():
-                            stats_str.append('Output {} {}: {:.4f}'.format(i, metric, result))
-
-                    training_description = " - ".join(stats_str)
-                    # set log for each batch
-                    t.set_description(training_description)
-
-                train_loss.append(loss.item())
-
+            train_loss = self.train_on_data_loader(train_data_loader, verbose=verbose)
             avg_train_loss = np.mean(train_loss)
 
             if self.scheduler:
