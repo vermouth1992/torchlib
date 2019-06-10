@@ -73,10 +73,12 @@ class Trainer(object):
 
     def fit(self, train_data_loader, epochs, verbose=True, val_data_loader=None, model_path=None,
             checkpoint_path=None):
+        self.model.train()
         best_val_loss = np.inf
         for i in range(epochs):
             print('Epoch {}/{}'.format(i + 1, epochs))
             t = tqdm(train_data_loader)
+            train_loss = []
             for data_label in t:
                 data, labels = data_label
                 data = move_tensor_to_gpu(data)
@@ -123,6 +125,10 @@ class Trainer(object):
                     # set log for each batch
                     t.set_description(training_description)
 
+                train_loss.append(loss.item())
+
+            avg_train_loss = np.mean(train_loss)
+
             if self.scheduler:
                 self.scheduler.step()
 
@@ -131,7 +137,7 @@ class Trainer(object):
 
                 if verbose:
                     stats_str = []
-                    stats_str.append('Val loss: {:.4f}'.format(val_loss))
+                    stats_str.append('Avg Train loss: {:.4f}, Val loss: {:.4f}'.format(avg_train_loss, val_loss))
 
                     for i, stat in enumerate(val_stats):
                         for metric, result in stat.items():
@@ -152,8 +158,8 @@ class Trainer(object):
                     best_val_loss = val_loss
 
     def evaluate(self, data_loader, desc=None):
+        self.model.eval()
         with torch.no_grad():
-            self.model.eval()
             total_loss = 0.0
             total = 0
 
@@ -212,11 +218,11 @@ class Trainer(object):
 
             loss = total_loss / total
             stats = self._compute_metrics(all_outputs, all_labels)
-            self.model.train()
 
             return loss, stats
 
     def predict(self, x, batch_size, verbose=False):
+        self.model.eval()
         if not isinstance(x, tuple):
             x = (x,)
 
@@ -239,6 +245,7 @@ class Trainer(object):
 
             for i, output in enumerate(outputs):
                 outputs[i] = torch.cat(output, dim=0).cpu().numpy()
+
         return outputs
 
     def save_checkpoint(self, path):
