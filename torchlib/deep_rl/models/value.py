@@ -17,17 +17,19 @@ Low dimensional classic control module
 class QModule(nn.Module):
     def __init__(self, size, state_dim, action_dim):
         super(QModule, self).__init__()
-        self.fc1 = nn.Linear(state_dim, size)
-        self.fc2 = nn.Linear(size, size)
-        self.fc3 = nn.Linear(size, action_dim)
+        self.model = nn.Sequential(
+            nn.Linear(state_dim, size),
+            nn.ReLU(),
+            nn.Linear(size, size),
+            nn.ReLU(),
+            nn.Linear(size, action_dim)
+        )
 
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
-        return x
+    def forward(self, state, action=None):
+        out = self.model.forward(state)
+        if action is not None:
+            out = out.gather(1, action.unsqueeze(1)).squeeze()
+        return out
 
 
 class DuelQModule(nn.Module):
@@ -92,11 +94,8 @@ class DoubleQModule(nn.Module):
         self.critic2 = QModule(size=size, state_dim=state_dim, action_dim=action_dim)
 
     def forward(self, state, action=None, minimum=True):
-        x1 = self.critic1.forward(state)
-        x2 = self.critic2.forward(state)
-        if action is not None:
-            x1 = x1.gather(1, action.unsqueeze(1)).squeeze()
-            x2 = x2.gather(1, action.unsqueeze(1)).squeeze()
+        x1 = self.critic1.forward(state, action)
+        x2 = self.critic2.forward(state, action)
         if minimum:
             return torch.min(x1, x2)
         return x1, x2

@@ -7,9 +7,10 @@ import copy
 
 import numpy as np
 import torch
-import torch.optim
 import torch.nn as nn
+import torch.optim
 from torch.nn import SmoothL1Loss
+
 from torchlib.common import FloatTensor, LongTensor, enable_cuda, eps
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.envs.wrappers import get_wrapper_by_name
@@ -18,7 +19,8 @@ from torchlib.utils.random import set_global_seeds
 
 
 class QNetwork(BaseAgent):
-    def __init__(self, network: nn.Module, optimizer: torch.optim.Optimizer, optimizer_scheduler=None, tau=1e-3):
+    def __init__(self, network: nn.Module, optimizer: torch.optim.Optimizer,
+                 optimizer_scheduler=None, tau=1e-3):
         self.network = network
         self.target_network = copy.deepcopy(network)
         self.optimizer = optimizer
@@ -62,7 +64,7 @@ class QNetwork(BaseAgent):
         if self.optimizer_scheduler:
             self.optimizer_scheduler.step()
         self.optimizer.zero_grad()
-        q_value = self.network(inputs).gather(1, actions.unsqueeze(1)).squeeze()
+        q_value = self.network.forward(inputs, actions)
         loss = self.loss(q_value, predicted_q_value)
         loss = (loss * weights).mean()
         loss.backward()
