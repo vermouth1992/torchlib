@@ -77,9 +77,11 @@ class DoubleCriticModule(nn.Module):
         self.critic1 = CriticModule(size=size, state_dim=state_dim, action_dim=action_dim)
         self.critic2 = CriticModule(size=size, state_dim=state_dim, action_dim=action_dim)
 
-    def forward(self, state, action):
+    def forward(self, state, action, minimum=True):
         x1 = self.critic1.forward(state, action)
         x2 = self.critic2.forward(state, action)
+        if minimum:
+            return torch.min(x1, x2)
         return x1, x2
 
 
@@ -89,9 +91,14 @@ class DoubleQModule(nn.Module):
         self.critic1 = QModule(size=size, state_dim=state_dim, action_dim=action_dim)
         self.critic2 = QModule(size=size, state_dim=state_dim, action_dim=action_dim)
 
-    def forward(self, state):
+    def forward(self, state, action=None, minimum=True):
         x1 = self.critic1.forward(state)
         x2 = self.critic2.forward(state)
+        if action is not None:
+            x1 = x1.gather(1, action.unsqueeze(1)).squeeze()
+            x2 = x2.gather(1, action.unsqueeze(1)).squeeze()
+        if minimum:
+            return torch.min(x1, x2)
         return x1, x2
 
 

@@ -83,34 +83,21 @@ class SoftActorCritic(BaseAgent):
 
         # q loss
 
-        if self.discrete:
-            q_values, q_values2 = self.q_network.forward(obs)
-            q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze()
-            q_values2 = q_values2.gather(1, actions.unsqueeze(1)).squeeze()
-        else:
-            q_values, q_values2 = self.q_network.forward(obs, actions)
+        q_values, q_values2 = self.q_network.forward(obs, actions, minimum=False)
 
         with torch.no_grad():
             next_action_distribution = self.policy_net.forward(next_obs)
             next_action = next_action_distribution.sample()
-            if self.discrete:
-                target_q_values, target_q_values2 = self.target_q_network.forward(next_obs)
-                target_q_values = target_q_values.gather(1, next_action.unsqueeze(1)).squeeze()
-                target_q_values2 = target_q_values2.gather(1, next_action.unsqueeze(1)).squeeze()
-            else:
-                target_q_values, target_q_values2 = self.target_q_network.forward(next_obs, next_action)
-            target_q_values = torch.min(target_q_values, target_q_values2)
+            target_q_values = self.target_q_network.forward(next_obs, next_action, minimum=True)
             q_target = reward + self._discount * (1.0 - done) * target_q_values
 
         q_values_loss = F.mse_loss(q_values, q_target) + F.mse_loss(q_values2, q_target)
 
         # policy loss
-
         if self.discrete:
             # for discrete action space, we can directly compute kl divergence analytically without sampling
             action_distribution = self.policy_net.forward(obs)
-            q_values, q_values2 = self.q_network.forward(obs)  # (batch_size, ac_dim)
-            q_values_min = torch.min(q_values, q_values2)
+            q_values_min = self.q_network.forward(obs, minimum=True)  # (batch_size, ac_dim)
             probs = F.softmax(q_values_min, dim=-1)
             target_distribution = torch.distributions.Categorical(probs=probs)
             policy_loss = torch.distributions.kl_divergence(action_distribution, target_distribution).mean()
@@ -122,7 +109,7 @@ class SoftActorCritic(BaseAgent):
             action_distribution = self.policy_net.forward(obs)
             pi, pre_tanh_pi = action_distribution.rsample(return_raw_value=True)
             log_prob = action_distribution.log_prob(pre_tanh_pi, is_raw_value=True)  # should be shape (batch_size,)
-            q_values_pi, q_values2_pi = self.q_network.forward(obs, pi)
+            q_values_pi, q_values2_pi = self.q_network.forward(obs, pi, minimum=False)
             q_values_pi_min = torch.min(q_values_pi, q_values2_pi)
             policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
 
