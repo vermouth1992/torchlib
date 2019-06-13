@@ -5,6 +5,7 @@ Typical modules for value functions and q values
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 from torchlib.utils.weight import fanin_init
 
@@ -79,6 +80,18 @@ class DoubleCriticModule(nn.Module):
     def forward(self, state, action):
         x1 = self.critic1.forward(state, action)
         x2 = self.critic2.forward(state, action)
+        return x1, x2
+
+
+class DoubleQModule(nn.Module):
+    def __init__(self, size, state_dim, action_dim):
+        super(DoubleQModule, self).__init__()
+        self.critic1 = QModule(size=size, state_dim=state_dim, action_dim=action_dim)
+        self.critic2 = QModule(size=size, state_dim=state_dim, action_dim=action_dim)
+
+    def forward(self, state):
+        x1 = self.critic1.forward(state)
+        x2 = self.critic2.forward(state)
         return x1, x2
 
 

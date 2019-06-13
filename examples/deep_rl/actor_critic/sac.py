@@ -1,13 +1,14 @@
 import pprint
 
-import numpy as np
 import gym
+import numpy as np
 import torch.optim
+
 import torchlib.deep_rl.actor_critic.sac as sac
 from torchlib import deep_rl
-from torchlib.deep_rl.models.policy import ContinuousNNFeedForwardPolicy
-from torchlib.deep_rl.models.value import DoubleCriticModule
 from torchlib.common import device
+from torchlib.deep_rl.models.policy import ContinuousNNFeedForwardPolicy, DiscreteNNFeedForwardPolicy
+from torchlib.deep_rl.models.value import DoubleCriticModule, DoubleQModule
 
 __all__ = ['deep_rl']
 
@@ -28,15 +29,21 @@ if __name__ == '__main__':
 
     env = gym.make(args['env_name'])
 
-    print('Action space high', env.action_space.high)
-    print('Action space low', env.action_space.low)
+    discrete = isinstance(env.action_space, gym.spaces.Discrete)
+
+    if not discrete:
+        print('Action space high', env.action_space.high)
+        print('Action space low', env.action_space.low)
 
     ob_dim = env.observation_space.shape[0]
-    ac_dim = env.action_space.shape[0]
+    ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
 
-    policy_net = ContinuousNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-
-    q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+    if discrete:
+        policy_net = DiscreteNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+        q_network = DoubleQModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+    else:
+        policy_net = ContinuousNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+        q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
 
     learning_rate = args['learning_rate']
 
@@ -57,6 +64,7 @@ if __name__ == '__main__':
 
     agent = sac.SoftActorCritic(policy_net=policy_net, policy_optimizer=policy_optimizer,
                                 q_network=q_network, q_optimizer=q_optimizer,
+                                discrete=discrete,
                                 target_entropy=target_entropy,
                                 log_alpha_tensor=log_alpha_tensor,
                                 alpha_optimizer=alpha_optimizer,

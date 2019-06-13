@@ -179,6 +179,17 @@ class DiscreteNNPolicy(NNPolicy, DiscretePolicy):
                                                nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
+class DiscreteNNFeedForwardPolicy(NNPolicy, DiscretePolicy):
+    def __init__(self, nn_size, state_dim, action_dim):
+        super(DiscreteNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
+                                                          nn_size=nn_size, state_dim=state_dim,
+                                                          action_dim=action_dim)
+
+    def forward(self, state, hidden=None):
+        out = super(DiscreteNNFeedForwardPolicy, self).forward(state=state, hidden=None)
+        return out[0]
+
+
 class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
     def __init__(self, recurrent, hidden_size, num_channel, action_dim):
         super(AtariPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size, num_channel=num_channel,
@@ -200,6 +211,7 @@ class ActorModule(nn.Module):
     """
     Actor module for various algorithms including DDPG and Imitation Learning
     """
+
     def __init__(self, size, state_dim, action_dim, output_activation=torch.tanh):
         super(ActorModule, self).__init__()
         self.fc1 = nn.Linear(state_dim, size)

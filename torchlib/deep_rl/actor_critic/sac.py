@@ -9,15 +9,16 @@ import os
 
 import numpy as np
 import torch
+import torch.distributions
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-from torchlib.common import FloatTensor, enable_cuda
+from tqdm.auto import tqdm
+
+from torchlib.common import FloatTensor, LongTensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random import set_global_seeds
 from torchlib.utils.weight import soft_update, hard_update
-from tqdm import tqdm
-
 from .utils import SimpleSampler, SimpleReplayPool
 
 
@@ -25,6 +26,7 @@ class SoftActorCritic(BaseAgent):
     def __init__(self,
                  policy_net: nn.Module, policy_optimizer,
                  q_network: nn.Module, q_optimizer,
+                 discrete,
                  target_entropy=None,
                  alpha_optimizer=None,
                  log_alpha_tensor=None,
@@ -32,20 +34,9 @@ class SoftActorCritic(BaseAgent):
                  alpha=1.0,
                  discount=0.99,
                  ):
-        """
-
-        Args:
-            policy_net: return a distribution
-            policy_optimizer:
-            q_network:
-            q_network2:
-            q_optimizer:
-            value_network:
-            value_optimizer:
-        """
-
         self.policy_net = policy_net
         self.policy_optimizer = policy_optimizer
+        self.discrete = discrete
         self.q_network = q_network
         self.q_optimizer = q_optimizer
         self.target_q_network = copy.deepcopy(self.q_network)
@@ -82,19 +73,32 @@ class SoftActorCritic(BaseAgent):
 
         """
         obs = torch.from_numpy(obs).type(FloatTensor)
-        actions = torch.from_numpy(actions).type(FloatTensor)
+        if self.discrete:
+            actions = torch.from_numpy(actions).type(LongTensor)
+        else:
+            actions = torch.from_numpy(actions).type(FloatTensor)
         next_obs = torch.from_numpy(next_obs).type(FloatTensor)
         done = torch.from_numpy(done).type(FloatTensor)
         reward = torch.from_numpy(reward).type(FloatTensor)
 
         # q loss
 
-        q_values, q_values2 = self.q_network.forward(obs, actions)
+        if self.discrete:
+            q_values, q_values2 = self.q_network.forward(obs)
+            q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze()
+            q_values2 = q_values2.gather(1, actions.unsqueeze(1)).squeeze()
+        else:
+            q_values, q_values2 = self.q_network.forward(obs, actions)
 
         with torch.no_grad():
             next_action_distribution = self.policy_net.forward(next_obs)
             next_action = next_action_distribution.sample()
-            target_q_values, target_q_values2 = self.target_q_network.forward(next_obs, next_action)
+            if self.discrete:
+                target_q_values, target_q_values2 = self.target_q_network.forward(next_obs)
+                target_q_values = target_q_values.gather(1, next_action.unsqueeze(1)).squeeze()
+                target_q_values2 = target_q_values2.gather(1, next_action.unsqueeze(1)).squeeze()
+            else:
+                target_q_values, target_q_values2 = self.target_q_network.forward(next_obs, next_action)
             target_q_values = torch.min(target_q_values, target_q_values2)
             q_target = reward + self._discount * (1.0 - done) * target_q_values
 
@@ -102,17 +106,25 @@ class SoftActorCritic(BaseAgent):
 
         # policy loss
 
-        action_distribution = self.policy_net.forward(obs)
+        if self.discrete:
+            # for discrete action space, we can directly compute kl divergence analytically without sampling
+            action_distribution = self.policy_net.forward(obs)
+            q_values, q_values2 = self.q_network.forward(obs)  # (batch_size, ac_dim)
+            q_values_min = torch.min(q_values, q_values2)
+            probs = F.softmax(q_values_min, dim=-1)
+            target_distribution = torch.distributions.Categorical(probs=probs)
+            policy_loss = torch.distributions.kl_divergence(action_distribution, target_distribution).mean()
 
-        pi, pre_tanh_pi = action_distribution.rsample(return_raw_value=True)
+            pi = action_distribution.sample()
+            log_prob = action_distribution.log_prob(pi)
 
-        log_prob = action_distribution.log_prob(pre_tanh_pi, is_raw_value=True)  # should be shape (batch_size,)
-
-        q_values_pi, q_values2_pi = self.q_network.forward(obs, pi)
-
-        q_values_pi_min = torch.min(q_values_pi, q_values2_pi)
-
-        policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
+        else:
+            action_distribution = self.policy_net.forward(obs)
+            pi, pre_tanh_pi = action_distribution.rsample(return_raw_value=True)
+            log_prob = action_distribution.log_prob(pre_tanh_pi, is_raw_value=True)  # should be shape (batch_size,)
+            q_values_pi, q_values2_pi = self.q_network.forward(obs, pi)
+            q_values_pi_min = torch.min(q_values_pi, q_values2_pi)
+            policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
 
         # alpha loss
         if self._log_alpha_tensor is not None:
