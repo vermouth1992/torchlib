@@ -259,7 +259,7 @@ class EpisodicDataset(Dataset):
 
         while self.size > self.maxlen:
             trajectory = self.memory.popleft()
-            self.size -= len(trajectory.state)
+            self.size -= len(trajectory.action)
 
     def rollout_iterator(self):
         for trajectory in self.memory:
