@@ -76,6 +76,8 @@ class ContinuousActionHead(nn.Module):
         self.log_std_range = log_std_range
         self.mu_header = nn.Linear(feature_output_size, action_dim)
         self.log_std_header = nn.Linear(feature_output_size, action_dim)
+        torch.nn.init.uniform_(self.mu_header.weight.data, -3e-3, 3e-3)
+        torch.nn.init.uniform_(self.log_std_header.weight.data, -3e-3, 3e-3)
 
     def forward(self, feature):
         mu = self.mu_header.forward(feature)
