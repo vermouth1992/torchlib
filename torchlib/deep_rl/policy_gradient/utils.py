@@ -86,6 +86,6 @@ def sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length):
         path = sample_trajectory(agent, env, max_path_length)
         paths.append(path)
         timesteps_this_batch += pathlength(path)
-        if timesteps_this_batch > min_timesteps_per_batch:
+        if timesteps_this_batch >= min_timesteps_per_batch:
             break
     return paths, timesteps_this_batch
