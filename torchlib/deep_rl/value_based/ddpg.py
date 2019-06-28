@@ -180,6 +180,9 @@ def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='
 
             action += actor_noise()
 
+        # perform clipping to ensure that it is within bound.
+        action = np.clip(action, a_min=-1., a_max=1.)
+
         observation, reward, done, _ = env.step(action)
 
         if replay_buffer_type == 'frame':
@@ -204,7 +207,7 @@ def train(env, actor, critic, actor_noise, total_timesteps, replay_buffer_type='
 
             target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
 
-            y_i = np.expand_dims(r_batch, axis=-1) + gamma * target_q * (1 - np.expand_dims(t_batch, axis=-1))
+            y_i = r_batch + gamma * target_q * (1 - t_batch)
 
             # Update the critic given the targets
             predicted_q_value, delta = critic.train(s_batch, a_batch, y_i, weights)
