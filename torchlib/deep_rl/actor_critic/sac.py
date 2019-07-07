@@ -206,12 +206,12 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         std_episode_reward = np.std(last_period_episode_reward)
         best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
         print("Epoch {}/{}. Total timesteps {}".format(epoch + 1, n_epochs, total_steps))
-        print("mean reward (10 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-        print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
+        print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+        print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
                                                      np.max(last_period_episode_reward)))
-        print("best mean reward {:.2f}".format(best_mean_episode_reward))
-        print("episodes %d" % len(episode_rewards))
-        print("alpha {:.2f}".format(agent.get_alpha()))
+        print("Best mean reward {:.2f}".format(best_mean_episode_reward))
+        print("Episodes %d" % len(episode_rewards))
+        print("Alpha {:.2f}".format(agent.get_alpha()))
 
 
 def make_default_parser():

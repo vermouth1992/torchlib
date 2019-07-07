@@ -23,15 +23,14 @@ def train(env: Env, agent: VanillaAgent,
     initial_dataset = gather_rollouts(env, random_policy, num_init_random_rollouts, max_rollout_length)
     dataset.append(initial_dataset)
 
-    agent.set_statistics(dataset)
-
-    agent.train()
-
     # gather new rollouts using MPC and retrain dynamics model
     for num_iter in range(num_on_policy_iters):
         if verbose:
             print('On policy iteration {}/{}. Size of dataset: {}. Number of trajectories: {}'.format(
                 num_iter + 1, num_on_policy_iters, len(dataset), dataset.num_trajectories))
+
+        agent.set_statistics(dataset)
+
         agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
                                 verbose=verbose)
         on_policy_dataset = gather_rollouts(env, agent, num_on_policy_rollouts, max_rollout_length)
