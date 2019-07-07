@@ -14,6 +14,19 @@ from .utils import EpisodicDataset as Dataset
 
 
 class Model(object):
+    def __init__(self, dynamics_model: nn.Module, optimizer):
+        self.dynamics_model = dynamics_model
+        self.optimizer = optimizer
+
+        if enable_cuda:
+            self.dynamics_model.cuda()
+
+    def train(self):
+        self.dynamics_model.train()
+
+    def eval(self):
+        self.dynamics_model.eval()
+
     def set_statistics(self, initial_dataset):
         raise NotImplementedError
 
@@ -49,18 +62,13 @@ class DeterministicModel(Model):
     """
 
     def __init__(self, dynamics_model: nn.Module, optimizer):
+        super(DeterministicModel, self).__init__(dynamics_model=dynamics_model, optimizer=optimizer)
         self.state_mean = None
         self.state_std = None
         self.action_mean = None
         self.action_std = None
         self.delta_state_mean = None
         self.delta_state_std = None
-
-        self.dynamics_model = dynamics_model
-        self.optimizer = optimizer
-
-        if enable_cuda:
-            self.dynamics_model.cuda()
 
     def set_statistics(self, initial_dataset: Dataset):
         self.state_mean = convert_numpy_to_tensor(initial_dataset.state_mean)

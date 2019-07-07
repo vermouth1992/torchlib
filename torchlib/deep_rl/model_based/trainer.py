@@ -12,6 +12,7 @@ def train(env: Env, agent: VanillaAgent,
           num_on_policy_iters=10,
           num_on_policy_rollouts=10,
           training_epochs=60,
+          policy_epochs=60,
           training_batch_size=512,
           verbose=True,
           checkpoint_path=None):
@@ -30,9 +31,10 @@ def train(env: Env, agent: VanillaAgent,
                 num_iter + 1, num_on_policy_iters, len(dataset), dataset.num_trajectories))
 
         agent.set_statistics(dataset)
-
         agent.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
                                 verbose=verbose)
+        agent.fit_policy(dataset=dataset, epoch=policy_epochs, batch_size=training_batch_size,
+                         verbose=verbose)
         on_policy_dataset = gather_rollouts(env, agent, num_on_policy_rollouts, max_rollout_length)
 
         # record on policy dataset statistics

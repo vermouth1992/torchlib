@@ -154,7 +154,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'reward'))
 ImitationTransition = namedtuple('ImitationTransition', ('state', 'action', 'reward', 'best_action'))
 
 
-class EpisodicDataset(Dataset):
+class EpisodicDataset(object):
     def __init__(self, maxlen=10000):
         self.memory = deque()
         # current state
@@ -312,7 +312,45 @@ class EpisodicDataset(Dataset):
         return stats
 
 
-def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) -> Dataset:
+class StateActionPairDataset(object):
+    def __init__(self, max_size):
+        self.states = deque(maxlen=max_size)
+        self.actions = deque(maxlen=max_size)
+
+    def __len__(self):
+        return len(self.states)
+
+    @property
+    def maxlen(self):
+        return self.states.maxlen
+
+    @property
+    def is_empty(self):
+        return len(self) == 0
+
+    def add(self, state, action):
+        self.states.append(state)
+        self.actions.append(action)
+
+    @property
+    def state_stats(self):
+        states = np.array(self.states)
+        return np.mean(states, axis=0), np.std(states, axis=0)
+
+    @property
+    def action_stats(self):
+        actions = np.array(self.actions)
+        return np.mean(actions, axis=0), np.std(actions, axis=0)
+
+    def random_iterator(self, batch_size):
+        states = np.array(self.states)
+        actions = np.array(self.actions)
+        data_loader = create_data_loader((states, actions), batch_size=batch_size,
+                                         shuffle=True, drop_last=False)
+        return data_loader
+
+
+def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) -> EpisodicDataset:
     dataset = EpisodicDataset()
 
     for _ in range(num_rollouts):

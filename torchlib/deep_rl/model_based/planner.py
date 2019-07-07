@@ -6,11 +6,12 @@ import numpy as np
 import torch
 
 from torchlib.common import convert_numpy_to_tensor, FloatTensor
+from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.sampler import BaseSampler, IntSampler
 from .model import Model
 
 
-class Planner(object):
+class Planner(BaseAgent):
     """
     Planner predict the next best action given current state using model. Planner typically doesn't have memory.
     """

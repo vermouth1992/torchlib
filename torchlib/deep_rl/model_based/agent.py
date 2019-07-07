@@ -7,8 +7,6 @@ The steps are:
 2. Fine-tune by using on policy data.
 """
 
-from collections import deque
-
 import torch
 
 from torchlib.common import map_location
@@ -16,19 +14,17 @@ from torchlib.deep_rl import BaseAgent
 from .model import Model
 from .planner import Planner
 from .policy import ImitationPolicy
-from .utils import EpisodicDataset as Dataset
+from .utils import EpisodicDataset as Dataset, StateActionPairDataset
 
 
 class VanillaAgent(BaseAgent):
+    """
+    In vanilla agent, it trains a world model and using the world model to plan.
+    """
+
     def __init__(self, model: Model, planner: Planner):
         self.model = model
         self.planner = planner
-
-    def train(self):
-        pass
-
-    def test(self):
-        pass
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -42,10 +38,15 @@ class VanillaAgent(BaseAgent):
         self.model.set_statistics(initial_dataset)
 
     def predict(self, state):
+        self.model.eval()
         return self.planner.predict(state)
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+        self.model.train()
         self.model.fit_dynamic_model(dataset, epoch, batch_size, verbose)
+
+    def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+        pass
 
 
 class DAggerAgent(VanillaAgent):
@@ -57,14 +58,7 @@ class DAggerAgent(VanillaAgent):
         super(DAggerAgent, self).__init__(model=model, planner=planner)
         self.policy = policy
 
-        self.states = deque(maxlen=policy_data_size)
-        self.actions = deque(maxlen=policy_data_size)
-
-    def train(self):
-        self.is_train = True
-
-    def test(self):
-        self.is_train = False
+        self.state_action_dataset = StateActionPairDataset(max_size=policy_data_size)
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -85,7 +79,7 @@ class DAggerAgent(VanillaAgent):
         Args:
             initial_dataset: dataset collected by initial (random) policy
 
-        Returns:
+        Returns: None
 
         """
         super(DAggerAgent, self).set_statistics(initial_dataset=initial_dataset)
@@ -101,16 +95,16 @@ class DAggerAgent(VanillaAgent):
         Returns: (ac_dim,)
 
         """
-        if self.is_train:
-            action = self.planner.predict(state)
-            self.states.append(state)
-            self.actions.append(action)
-
+        self.model.eval()
+        action = self.planner.predict(state)
+        self.state_action_dataset.add(state=state, action=action)
+        self.policy.eval()
         action = self.policy.predict(state)
         return action
 
-    def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
-        """ Fit dynamic model and policy model at the same time. """
-        super(DAggerAgent, self).fit_dynamic_model(dataset, epoch, batch_size, verbose)
-        if len(self.states) > batch_size:
-            self.policy.fit(self.states, self.actions, epoch=epoch, batch_size=batch_size, verbose=verbose)
+    def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+        if len(self.state_action_dataset) > 0:
+            self.policy.train()
+            self.policy.set_state_stats(dataset.state_mean, dataset.state_std)
+            self.policy.fit(self.state_action_dataset, epoch=epoch, batch_size=batch_size,
+                            verbose=verbose)

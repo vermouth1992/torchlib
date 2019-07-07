@@ -9,10 +9,11 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor, enable_cuda
-from torchlib.dataset.utils import create_data_loader
+from torchlib.deep_rl import BaseAgent
+from torchlib.deep_rl.model_based.utils import StateActionPairDataset
 
 
-class ImitationPolicy(object):
+class ImitationPolicy(BaseAgent):
     def __init__(self, model: nn.Module, optimizer):
         self.model = model
         self.optimizer = optimizer
@@ -24,6 +25,12 @@ class ImitationPolicy(object):
 
         if enable_cuda:
             self.model.cuda()
+
+    def train(self):
+        self.model.train()
+
+    def eval(self):
+        self.model.eval()
 
     @property
     def state_dict(self):
@@ -54,19 +61,14 @@ class ImitationPolicy(object):
         """
         raise NotImplementedError
 
-    def fit(self, states, actions, epoch=10, batch_size=128, verbose=False):
-        states = np.array(states)
-        actions = np.array(actions)
-
-        data_loader = create_data_loader((states, actions), batch_size=batch_size, shuffle=True, drop_last=False)
-
+    def fit(self, dataset: StateActionPairDataset, epoch=10, batch_size=128, verbose=False):
         t = range(epoch)
         if verbose:
             t = tqdm(t)
 
         for i in t:
             losses = []
-            for state, action in data_loader:
+            for state, action in dataset.random_iterator(batch_size=batch_size):
                 self.optimizer.zero_grad()
                 state = move_tensor_to_gpu(state)
                 action = move_tensor_to_gpu(action)
