@@ -162,6 +162,8 @@ class EpisodicDataset(object):
         self._actions = []
         self._rewards = []
         self.size = 0
+        # initial state
+        self.initial_state = deque(maxlen=maxlen)
 
         self.maxlen = maxlen
 

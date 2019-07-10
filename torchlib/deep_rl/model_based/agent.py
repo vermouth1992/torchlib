@@ -17,14 +17,13 @@ from .policy import ImitationPolicy
 from .utils import EpisodicDataset as Dataset, StateActionPairDataset
 
 
-class VanillaAgent(BaseAgent):
+class ModelBasedAgent(BaseAgent):
     """
     In vanilla agent, it trains a world model and using the world model to plan.
     """
 
-    def __init__(self, model: Model, planner: Planner):
+    def __init__(self, model: Model):
         self.model = model
-        self.planner = planner
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -38,24 +37,33 @@ class VanillaAgent(BaseAgent):
         self.model.set_statistics(initial_dataset)
 
     def predict(self, state):
-        self.model.eval()
-        return self.planner.predict(state)
+        raise NotImplementedError
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         self.model.train()
         self.model.fit_dynamic_model(dataset, epoch, batch_size, verbose)
 
     def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
-        pass
+        raise NotImplementedError
 
 
-class DAggerAgent(VanillaAgent):
+class ModelBasedPlanAgent(ModelBasedAgent):
+    def __init__(self, model: Model, planner: Planner):
+        super(ModelBasedPlanAgent, self).__init__(model=model)
+        self.planner = planner
+
+    def predict(self, state):
+        self.model.eval()
+        return self.planner.predict(state)
+
+
+class ModelBasedDAggerAgent(ModelBasedPlanAgent):
     """
     Imitate optimal action by training a policy model using DAgger
     """
 
     def __init__(self, model, planner, policy: ImitationPolicy, policy_data_size=1000):
-        super(DAggerAgent, self).__init__(model=model, planner=planner)
+        super(ModelBasedDAggerAgent, self).__init__(model=model, planner=planner)
         self.policy = policy
 
         self.state_action_dataset = StateActionPairDataset(max_size=policy_data_size)
@@ -82,7 +90,7 @@ class DAggerAgent(VanillaAgent):
         Returns: None
 
         """
-        super(DAggerAgent, self).set_statistics(initial_dataset=initial_dataset)
+        super(ModelBasedDAggerAgent, self).set_statistics(initial_dataset=initial_dataset)
         self.policy.set_state_stats(initial_dataset.state_mean, initial_dataset.state_std)
 
     def predict(self, state):
@@ -95,8 +103,7 @@ class DAggerAgent(VanillaAgent):
         Returns: (ac_dim,)
 
         """
-        self.model.eval()
-        action = self.planner.predict(state)
+        action = super(ModelBasedDAggerAgent, self).predict(state=state)
         self.state_action_dataset.add(state=state, action=action)
         self.policy.eval()
         action = self.policy.predict(state)
@@ -108,3 +115,11 @@ class DAggerAgent(VanillaAgent):
             self.policy.set_state_stats(dataset.state_mean, dataset.state_std)
             self.policy.fit(self.state_action_dataset, epoch=epoch, batch_size=batch_size,
                             verbose=verbose)
+
+
+class ModelBasedPPOAgent(ModelBasedAgent):
+    """
+    Train model using real world interactions and update policy using PPO in simulated environments.
+    """
+    def __init__(self, model):
+        super(ModelBasedPPOAgent, self).__init__(model=model)

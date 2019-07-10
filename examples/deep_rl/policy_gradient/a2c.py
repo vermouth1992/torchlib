@@ -8,7 +8,8 @@ import pprint
 import gym.spaces
 import numpy as np
 import torch.optim
-import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
+
+import torchlib.deep_rl.policy_gradient as pg
 from torchlib import deep_rl
 from torchlib.common import enable_cuda
 from torchlib.deep_rl.models.policy import ContinuousNNPolicy, DiscreteNNPolicy
@@ -84,11 +85,11 @@ if __name__ == '__main__':
     else:
         init_hidden_unit = None
 
-    agent = vanilla_pg.Agent(policy_net, policy_optimizer,
-                             init_hidden_unit=init_hidden_unit,
-                             nn_baseline=args.nn_baseline,
-                             lam=gae_lambda,
-                             value_coef=args.value_coef)
+    agent = pg.A2CAgent(policy_net, policy_optimizer,
+                        init_hidden_unit=init_hidden_unit,
+                        nn_baseline=args.nn_baseline,
+                        lam=gae_lambda,
+                        value_coef=args.value_coef)
 
-    vanilla_pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-                     logdir=None, seed=args.seed)
+    pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
+             logdir=None, seed=args.seed)

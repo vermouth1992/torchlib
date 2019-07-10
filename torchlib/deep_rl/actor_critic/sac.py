@@ -196,7 +196,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
 
         # logging
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
-        last_period_episode_reward = episode_rewards[-10:]
+        last_period_episode_reward = episode_rewards[-100:]
         mean_episode_reward = np.mean(last_period_episode_reward)
         print('------------')
         if mean_episode_reward > best_mean_episode_reward:
@@ -206,7 +206,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         std_episode_reward = np.std(last_period_episode_reward)
         best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
         print("Epoch {}/{}. Total timesteps {}".format(epoch + 1, n_epochs, total_steps))
-        print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+        print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
         print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
                                                      np.max(last_period_episode_reward)))
         print("Best mean reward {:.2f}".format(best_mean_episode_reward))

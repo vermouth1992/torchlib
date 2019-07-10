@@ -83,10 +83,10 @@ if __name__ == '__main__':
     gae_lambda = args['gae_lambda']
     max_path_length = args['ep_len'] if args['ep_len'] > 0 else None
 
-    agent = ppo.Agent(network, optimizer,
-                      init_hidden_unit=init_hidden_unit,
-                      lam=gae_lambda, clip_param=args['clip_param'],
-                      entropy_coef=args['entropy_coef'], value_coef=args['value_coef'])
+    agent = ppo.PPOAgent(network, optimizer,
+                         init_hidden_unit=init_hidden_unit,
+                         lam=gae_lambda, clip_param=args['clip_param'],
+                         entropy_coef=args['entropy_coef'], value_coef=args['value_coef'])
 
     checkpoint_path = 'checkpoint/{}_{}.ckpt'.format(env_name, recurrent)
 

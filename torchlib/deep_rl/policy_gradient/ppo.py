@@ -5,40 +5,48 @@ Pytorch implementation of proximal policy optimization
 import numpy as np
 import torch
 import torch.nn as nn
-import torchlib.deep_rl.policy_gradient.vanilla as vanilla_pg
-from torchlib.common import eps, enable_cuda, FloatTensor
-from torchlib.dataset.utils import create_data_loader
 
+from torchlib.common import eps, enable_cuda, FloatTensor, convert_numpy_to_tensor
+from torchlib.dataset.utils import create_data_loader
+from .a2c import A2CAgent
 from .utils import compute_gae, compute_sum_of_rewards
 
 
-class Agent(vanilla_pg.Agent):
+class PPOAgent(A2CAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit, lam=1., clip_param=0.2,
-                 entropy_coef=0.01, value_coef=0.5):
-        super(Agent, self).__init__(policy_net, policy_optimizer, init_hidden_unit, True, lam, value_coef)
+                 entropy_coef=0.01, value_coef=1.):
+        super(PPOAgent, self).__init__(policy_net, policy_optimizer, init_hidden_unit, True, lam, value_coef)
         self.clip_param = clip_param
         self.entropy_coef = entropy_coef
 
     def construct_dataset(self, paths, gamma):
-        rewards = compute_sum_of_rewards(paths, gamma)
-        observation = np.concatenate([path["observation"] for path in paths])
-        hidden = np.concatenate([path["hidden"] for path in paths])
-        mask = np.concatenate([path["mask"] for path in paths])
-        advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
+        rewards = compute_sum_of_rewards(paths, gamma, self.policy_net, self.state_value_mean,
+                                         self.state_value_std)
 
-        # reshape all episodes to a single large batch
-        actions = []
-        for path in paths:
-            actions.extend(path['actions'])
+        self.state_value_mean = np.mean(rewards)
+        self.state_value_std = np.std(rewards)
+
+        print(self.state_value_mean, self.state_value_std)
+
+        advantage = compute_gae(paths, gamma, self.policy_net, self.lam, self.state_value_mean,
+                                self.state_value_std)
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
-        actions = torch.Tensor(actions)
-        advantage = torch.Tensor(advantage)
-        rewards = torch.Tensor(rewards)
-        observation = torch.Tensor(observation)
-        hidden = torch.Tensor(hidden)
-        mask = torch.Tensor(mask)
+
+        # reshape all episodes to a single large batch
+        observation = np.concatenate([path["observation"] for path in paths])
+        hidden = np.concatenate([path["hidden"] for path in paths])
+        mask = np.concatenate([path["mask"] for path in paths])
+        actions = np.concatenate([path['actions'] for path in paths])
+
+        # convert to torch tensor
+        actions = convert_numpy_to_tensor(actions)
+        advantage = convert_numpy_to_tensor(advantage)
+        rewards = convert_numpy_to_tensor(rewards)
+        observation = convert_numpy_to_tensor(observation)
+        hidden = convert_numpy_to_tensor(hidden)
+        mask = convert_numpy_to_tensor(mask)
 
         with torch.no_grad():
             data_loader = create_data_loader((observation, hidden, actions), batch_size=32, shuffle=False,
@@ -132,6 +140,3 @@ class Agent(vanilla_pg.Agent):
                 loss = policy_loss - entropy_loss * self.entropy_coef + self.value_coef * value_loss
                 loss.backward()
                 self.policy_optimizer.step()
-
-
-train = vanilla_pg.train

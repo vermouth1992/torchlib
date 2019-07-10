@@ -1,11 +1,11 @@
 from gym import Env
 
 from torchlib.deep_rl import RandomAgent
-from .agent import VanillaAgent
+from .agent import ModelBasedAgent
 from .utils import EpisodicDataset as Dataset, gather_rollouts
 
 
-def train(env: Env, agent: VanillaAgent,
+def train(env: Env, agent: ModelBasedAgent,
           dataset_maxlen=10000,
           num_init_random_rollouts=10,
           max_rollout_length=500,

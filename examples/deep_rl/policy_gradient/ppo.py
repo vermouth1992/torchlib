@@ -8,7 +8,8 @@ import pprint
 import gym.spaces
 import numpy as np
 import torch.optim
-import torchlib.deep_rl.policy_gradient.ppo as ppo
+
+import torchlib.deep_rl.policy_gradient as pg
 from torchlib import deep_rl
 from torchlib.deep_rl.models.policy import DiscreteNNPolicy, ContinuousNNPolicy
 from torchlib.utils.random import set_global_seeds
@@ -21,18 +22,19 @@ def make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
     parser.add_argument('--exp_name', type=str, default='ppo')
-    parser.add_argument('--discount', type=float, default=1.0)
+    parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.01)
-    parser.add_argument('--value_coef', type=float, default=0.5)
+    parser.add_argument('--value_coef', type=float, default=1.0)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--recurrent', '-re', action='store_true')
     parser.add_argument('--hidden_size', type=int, default=20)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
-    parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=2e-3)
     parser.add_argument('--nn_size', '-s', type=int, default=64)
+    parser.add_argument('--test', action='store_true')
     parser.add_argument('--seed', type=int, default=1)
     return parser
 
@@ -44,8 +46,11 @@ if __name__ == '__main__':
 
     max_path_length = args.ep_len if args.ep_len > 0 else None
 
+    assert args.discount < 1.0, 'discount must be smaller than 1.0'
+
     if args.env_name.startswith('Roboschool'):
         import roboschool
+
         __all__.append('roboschool')
 
     set_global_seeds(args.seed)
@@ -81,11 +86,19 @@ if __name__ == '__main__':
     else:
         init_hidden_unit = None
 
-    agent = ppo.Agent(policy_net, policy_optimizer,
-                      init_hidden_unit=init_hidden_unit,
-                      lam=gae_lambda,
-                      clip_param=args.clip_param,
-                      entropy_coef=args.entropy_coef, value_coef=args.value_coef)
+    agent = pg.PPOAgent(policy_net, policy_optimizer,
+                        init_hidden_unit=init_hidden_unit,
+                        lam=gae_lambda,
+                        clip_param=args.clip_param,
+                        entropy_coef=args.entropy_coef, value_coef=args.value_coef)
 
-    ppo.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-              logdir=None, seed=args.seed)
+    checkpoint_path = 'checkpoint/{}_ppo.ckpt'.format(args.env_name)
+
+    if args.test:
+        agent.load_checkpoint(checkpoint_path)
+        deep_rl.test(env, agent, num_episode=args.n_iter, frame_history_len=1, render=False,
+                     seed=args.seed)
+
+    else:
+        pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
+                 logdir=None, seed=args.seed, checkpoint_path=checkpoint_path)

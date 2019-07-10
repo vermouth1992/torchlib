@@ -9,24 +9,19 @@ Use various optimization techniques
 6. Multiple step update for PG
 """
 
-import datetime
-import os
-import time
-
 import numpy as np
 import torch
 import torch.nn as nn
-from tensorboardX import SummaryWriter
-from torchlib.common import FloatTensor, eps, enable_cuda
+
+from torchlib.common import FloatTensor, eps, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
+from .utils import compute_gae, compute_sum_of_rewards
 
-from .utils import compute_gae, compute_sum_of_rewards, sample_trajectories, pathlength
 
-
-class Agent(BaseAgent):
+class A2CAgent(BaseAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit=None, nn_baseline=True,
                  lam=None, value_coef=0.5):
-        super(Agent, self).__init__()
+        super(A2CAgent, self).__init__()
         self.policy_net = policy_net
         if enable_cuda:
             self.policy_net.cuda()
@@ -37,10 +32,15 @@ class Agent(BaseAgent):
         self.value_coef = value_coef
         self.recurrent = init_hidden_unit is not None
 
+        self.state_value_mean = -500.
+        self.state_value_std = 0.
+
         if init_hidden_unit is not None:
             self.init_hidden_unit = init_hidden_unit
         else:
-            self.init_hidden_unit = np.zeros(shape=(1))  # dummy hidden unit for feed-forward policy
+            self.init_hidden_unit = np.zeros(shape=(1), dtype=np.float32)  # dummy hidden unit for feed-forward policy
+
+        assert self.init_hidden_unit.dtype == np.float32, 'hidden data type must be float32'
 
         assert isinstance(self.init_hidden_unit, np.ndarray), 'Type of init_hidden_unit {}'.format(
             type(init_hidden_unit))
@@ -87,19 +87,21 @@ class Agent(BaseAgent):
         return loss
 
     def construct_dataset(self, paths, gamma):
-        rewards = compute_sum_of_rewards(paths, gamma)
+        rewards = compute_sum_of_rewards(paths, gamma, self.policy_net, self.state_value_mean,
+                                         self.state_value_std)
+        self.state_value_mean = np.mean(rewards)
+        self.state_value_std = np.std(rewards)
+
         observation = np.concatenate([path["observation"] for path in paths])
         hidden = np.concatenate([path["hidden"] for path in paths])
         mask = np.concatenate([path["mask"] for path in paths])
+        actions = np.concatenate([path['actions'] for path in paths])
+
         if self.nn_baseline:
-            advantage = compute_gae(paths, gamma, self.policy_net, self.lam, np.mean(rewards), np.std(rewards))
+            advantage = compute_gae(paths, gamma, self.policy_net, self.lam,
+                                    self.state_value_mean, self.state_value_std)
         else:
             advantage = rewards
-
-        # reshape all episodes to a single large batch
-        actions = []
-        for path in paths:
-            actions.extend(path['actions'])
 
         # normalize advantage
         advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
@@ -116,12 +118,10 @@ class Agent(BaseAgent):
         """
         actions, advantage, observation, rewards, hidden, mask = dataset
 
-        observation = torch.Tensor(observation).type(FloatTensor)
-        actions = torch.Tensor(actions)
-        if enable_cuda:
-            actions = actions.cuda()
-        advantage = torch.Tensor(advantage).type(FloatTensor)
-        rewards = torch.Tensor(rewards).type(FloatTensor)
+        observation = convert_numpy_to_tensor(observation)
+        actions = convert_numpy_to_tensor(actions)
+        advantage = convert_numpy_to_tensor(advantage)
+        rewards = convert_numpy_to_tensor(rewards)
 
         for _ in range(epoch):
             # update policy network
@@ -141,7 +141,7 @@ class Agent(BaseAgent):
                     end_index = zero_index[i + 1]
                     current_obs = observation[start_index:end_index]
                     current_actions = actions[start_index:end_index]
-                    current_hidden = torch.Tensor(np.expand_dims(self.init_hidden_unit, axis=0)).type(FloatTensor)
+                    current_hidden = convert_numpy_to_tensor(np.expand_dims(self.init_hidden_unit, axis=0))
                     current_dist, _, current_baseline = self.policy_net.forward(current_obs, current_hidden)
                     log_prob.append(current_dist.log_prob(current_actions))
                     raw_baselines.append(current_baseline)
@@ -185,72 +185,3 @@ class Agent(BaseAgent):
             state = torch.from_numpy(state).type(FloatTensor)
             with torch.no_grad():
                 return self.policy_net.forward(state)[1].cpu().numpy()[0]
-
-
-def train(exp, env, agent: Agent, n_iter, gamma, min_timesteps_per_batch, max_path_length,
-          logdir=None, seed=1996, checkpoint_path=None):
-    # Set random seeds
-    env.seed(seed)
-    # Maximum length for episodes
-    max_path_length = max_path_length or env.spec.max_episode_steps
-
-    total_timesteps = 0
-
-    if logdir:
-        writer = SummaryWriter(log_dir=os.path.join(logdir, exp))
-    else:
-        writer = None
-
-    best_avg_return = None
-
-    start_time = time.time()
-
-    for itr in range(n_iter):
-        paths, timesteps_this_batch = sample_trajectories(agent, env, min_timesteps_per_batch, max_path_length)
-
-        total_timesteps += timesteps_this_batch
-
-        datasets = agent.construct_dataset(paths, gamma)
-        agent.update_policy(datasets)
-
-        print('-----------------------------------------------------------------------------------')
-        print('Iteration {}/{} - Number of paths {} - Timesteps this batch {} - Total timesteps {}'.format(
-            itr + 1,
-            n_iter,
-            len(paths),
-            timesteps_this_batch,
-            total_timesteps))
-
-        # logger
-        returns = [np.sum(path["reward"]) for path in paths]
-        ep_lengths = [pathlength(path) for path in paths]
-        avg_return = np.mean(returns)
-        std_return = np.std(returns)
-        max_return = np.max(returns)
-        min_return = np.min(returns)
-
-        if best_avg_return is None or avg_return > best_avg_return:
-            best_avg_return = avg_return
-            if checkpoint_path:
-                print('Saving checkpoint to {}'.format(checkpoint_path))
-                agent.save_checkpoint(checkpoint_path=checkpoint_path)
-
-        if writer:
-            writer.add_scalars('data/return', {'avg': avg_return,
-                                               'std': std_return,
-                                               'max': max_return,
-                                               'min': min_return}, itr)
-            writer.add_scalars('data/episode_length', {'avg': np.mean(ep_lengths),
-                                                       'std': np.std(ep_lengths)}, itr)
-
-        del datasets, paths
-
-        time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
-
-        print('Return {:.2f}±{:.2f} - Return range [{:.2f}, {:.2f}] - Best Avg Return {:.2f} - Time elapsed {}'.format(
-            avg_return,
-            std_return,
-            min_return,
-            max_return,
-            best_avg_return,
-            time_elapse))

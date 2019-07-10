@@ -42,7 +42,7 @@ if __name__ == '__main__':
     from torchlib.deep_rl.model_based.policy import DiscretePolicy, ContinuousPolicy
     from torchlib.deep_rl.models.policy import ActorModule
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
-    from torchlib.deep_rl.model_based.agent import VanillaAgent, DAggerAgent
+    from torchlib.deep_rl.model_based.agent import ModelBasedPlanAgent, ModelBasedDAggerAgent
     import torchlib.deep_rl.model_based.trainer as trainer
 
     __all__ = ['deep_rl']
@@ -92,9 +92,10 @@ if __name__ == '__main__':
         raise ValueError('Unknown planner {}'.format(args['planner']))
 
     if dagger:
-        agent = DAggerAgent(model=model, planner=planner, policy=policy, policy_data_size=args['dataset_maxlen'])
+        agent = ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
+                                      policy_data_size=args['dataset_maxlen'])
     else:
-        agent = VanillaAgent(model=model, planner=planner)
+        agent = ModelBasedPlanAgent(model=model, planner=planner)
 
     trainer.train(env, agent,
                   dataset_maxlen=args['dataset_maxlen'],
