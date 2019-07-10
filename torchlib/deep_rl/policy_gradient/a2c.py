@@ -36,7 +36,7 @@ class A2CAgent(BaseAgent):
         self.state_value_std = 0.
 
         if init_hidden_unit is not None:
-            self.init_hidden_unit = init_hidden_unit
+            self.init_hidden_unit = init_hidden_unit.astype(np.float32)
         else:
             self.init_hidden_unit = np.zeros(shape=(1), dtype=np.float32)  # dummy hidden unit for feed-forward policy
 
