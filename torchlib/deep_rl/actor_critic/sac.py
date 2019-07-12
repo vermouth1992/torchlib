@@ -232,3 +232,54 @@ def make_default_parser():
     parser.add_argument('--replay_pool_size', type=int, default=1000000)
     parser.add_argument('--seed', type=int, default=123)
     return parser
+
+
+def get_policy_net_q_network(env, args):
+    """ Return the policy network and q network
+
+    Args:
+        env: standard gym env instance
+        args: arguments
+
+    Returns: policy network, q network
+
+    """
+    import gym
+    discrete = isinstance(env.action_space, gym.spaces.Discrete)
+
+    if not discrete:
+        print('Action space high', env.action_space.high)
+        print('Action space low', env.action_space.low)
+
+    if len(env.observation_space) == 1:
+        # low dimensional environment
+        ob_dim = env.observation_space.shape[0]
+        ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
+        if discrete:
+            from torchlib.deep_rl.models import DiscreteNNFeedForwardPolicy, DoubleQModule
+            policy_net = DiscreteNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
+                                                     action_dim=ac_dim)
+            q_network = DoubleQModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+        else:
+            from torchlib.deep_rl.models import ContinuousNNFeedForwardPolicy, DoubleCriticModule
+
+            policy_net = ContinuousNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
+                                                       action_dim=ac_dim)
+            q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+
+        return policy_net, q_network
+
+    elif len(env.observation_space) == 3:
+        if env.observation_space[:2] == (84, 84):
+            # atari env
+            from torchlib.deep_rl.models import AtariFeedForwardPolicy, DoubleAtariQModule
+            policy_net = AtariFeedForwardPolicy(num_channel=args['frame_history_len'],
+                                                action_dim=env.action_space.n)
+            q_network = DoubleAtariQModule(frame_history_len=args['frame_history_len'],
+                                           action_dim=env.action_space.n)
+            return policy_net, q_network
+        else:
+            raise ValueError('Not a typical env. Please define custom network')
+
+    else:
+        raise ValueError('Not a typical env. Please define custom network')

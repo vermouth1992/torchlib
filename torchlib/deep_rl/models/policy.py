@@ -203,6 +203,16 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
         return super(AtariPolicy, self).forward(state, hidden)
 
 
+class AtariFeedForwardPolicy(AtariCNNPolicy, DiscretePolicy):
+    def __init__(self, num_channel, action_dim):
+        super(AtariFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
+                                                     num_channel=num_channel, action_dim=action_dim)
+
+    def forward(self, state, hidden=None):
+        out = super(AtariFeedForwardPolicy, self).forward(state=state, hidden=None)
+        return out[0]
+
+
 """
 Deterministic Policy
 """

@@ -7,10 +7,7 @@ import torch.optim
 import torchlib.deep_rl.actor_critic.sac as sac
 from torchlib import deep_rl
 from torchlib.common import device
-from torchlib.deep_rl.models.policy import ContinuousNNFeedForwardPolicy, DiscreteNNFeedForwardPolicy
-from torchlib.deep_rl.models.value import DoubleCriticModule, DoubleQModule
-
-__all__ = ['deep_rl']
+from torchlib.deep_rl.envs import make_env
 
 if __name__ == '__main__':
     parser = sac.make_default_parser()
@@ -22,28 +19,10 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     pprint.pprint(args)
 
-    if args['env_name'].startswith('Roboschool'):
-        import roboschool
-
-        __all__.append('roboschool')
-
-    env = gym.make(args['env_name'])
+    env = make_env(args['env_name'], args)
 
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
-
-    if not discrete:
-        print('Action space high', env.action_space.high)
-        print('Action space low', env.action_space.low)
-
-    ob_dim = env.observation_space.shape[0]
-    ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
-
-    if discrete:
-        policy_net = DiscreteNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-        q_network = DoubleQModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-    else:
-        policy_net = ContinuousNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-        q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
+    policy_net, q_network = sac.get_policy_net_q_network(env, args)
 
     learning_rate = args['learning_rate']
 
@@ -79,4 +58,5 @@ if __name__ == '__main__':
                   seed=args['seed'], checkpoint_path=checkpoint_path)
     else:
         agent.load_checkpoint(checkpoint_path=checkpoint_path)
-        deep_rl.test(env, agent, num_episode=args['n_epochs'], render=args['render'], seed=args['seed'])
+        deep_rl.test(env, agent, num_episode=args['n_epochs'], render=args['render'], seed=args['seed'],
+                     frame_history_len=args['frame_history_len'])

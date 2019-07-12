@@ -6,17 +6,17 @@ Solve Flappy bird using PPO
 Train PPO to play flappy bird
 """
 
-import numpy as np
 import os
 import pprint
+
 import gym
-
+import numpy as np
 import torch.optim
-import torchlib.deep_rl.policy_gradient.ppo as ppo
-from torchlib.deep_rl.envs.wrappers import wrap_flappybird, wrap_deepmind
 from gym import wrappers
-from torchlib import deep_rl
 
+import torchlib.deep_rl.policy_gradient.ppo as ppo
+from torchlib import deep_rl
+from torchlib.deep_rl.envs.wrappers import wrap_flappybird, wrap_deepmind
 from torchlib.deep_rl.models.policy import AtariPolicy
 
 

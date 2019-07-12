@@ -138,11 +138,27 @@ class AtariQModule(nn.Module):
             nn.Linear(512, action_dim)
         )
 
-    def forward(self, x):
-        x = x / 255.0
-        x = x.permute(0, 3, 1, 2)
-        x = self.model.forward(x)
-        return x
+    def forward(self, state, action=None):
+        state = state / 255.0
+        state = state.permute(0, 3, 1, 2)
+        out = self.model.forward(state)
+        if action is not None:
+            out = out.gather(1, action.unsqueeze(1)).squeeze()
+        return out
+
+
+class DoubleAtariQModule(nn.Module):
+    def __init__(self, frame_history_len, action_dim):
+        super(DoubleAtariQModule, self).__init__()
+        self.critic1 = AtariQModule(frame_history_len, action_dim)
+        self.critic2 = AtariQModule(frame_history_len, action_dim)
+
+    def forward(self, state, action=None, minimum=True):
+        x1 = self.critic1.forward(state, action)
+        x2 = self.critic2.forward(state, action)
+        if minimum:
+            return torch.min(x1, x2)
+        return x1, x2
 
 
 class AtariDuelQModule(nn.Module):

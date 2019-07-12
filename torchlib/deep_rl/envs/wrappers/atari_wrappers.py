@@ -149,29 +149,28 @@ class StackFrame(gym.Wrapper):
         dtype = self.single_observation_space.dtype
         shape = shape.append(shape.pop() * frame_length)
         self.observation_space = spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
-        self.obs = []
+        self.obs = deque(maxlen=frame_length)
         for _ in range(frame_length):
-            self.obs.append(self.single_observation_space.sample())
+            self.obs.append(np.zeros(shape=self.single_observation_space.shape))
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
-        self.obs.pop(0)
         self.obs.append(obs)
         return np.concatenate(self.obs, axis=-1), reward, done, info
 
     def reset(self):
         obs = self.env.reset()
-        self.obs.pop(0)
         self.obs.append(obs)
         return np.concatenate(self.obs, axis=-1)
 
 
-def wrap_deepmind_ram(env):
+def wrap_deepmind_ram(env, frame_length=4):
     env = EpisodicLifeEnv(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
+    env = StackFrame(env, frame_length=frame_length)
     env = ClippedRewardsWrapper(env)
     return env
 

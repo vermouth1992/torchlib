@@ -5,91 +5,53 @@ Test Vanilla PG on standard environment, where state is (ob_dim) and action is c
 
 import pprint
 
-import gym.spaces
 import numpy as np
 import torch.optim
 
 import torchlib.deep_rl.policy_gradient as pg
+import torchlib.deep_rl.policy_gradient.a2c as a2c
 from torchlib import deep_rl
-from torchlib.common import enable_cuda
-from torchlib.deep_rl.models.policy import ContinuousNNPolicy, DiscreteNNPolicy
+from torchlib.deep_rl.envs import make_env
+from torchlib.utils.random import set_global_seeds
 
-# used for import self-define envs
+# used for import self-defined envs
 __all__ = ['deep_rl']
 
-
-def make_parser():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default='vpg')
-    parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--gae_lambda', type=float, default=0.98)
-    parser.add_argument('--n_iter', '-n', type=int, default=100)
-    parser.add_argument('--batch_size', '-b', type=int, default=1000)
-    parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
-    parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
-    parser.add_argument('--nn_baseline', '-bl', action='store_true')
-    parser.add_argument('--recurrent', '-re', action='store_true')
-    parser.add_argument('--hidden_size', type=int, default=20)
-    parser.add_argument('--nn_size', '-s', type=int, default=64)
-    parser.add_argument('--value_coef', type=float, default=1.0)
-    parser.add_argument('--seed', type=int, default=1)
-    return parser
-
-
 if __name__ == '__main__':
-    parser = make_parser()
-    args = parser.parse_args()
-    pprint.pprint(vars(args))
+    parser = a2c.make_default_parser()
+    args = vars(parser.parse_args())
+    pprint.pprint(args)
 
-    max_path_length = args.ep_len if args.ep_len > 0 else None
+    env_name = args['env_name']
 
-    if args.env_name.startswith('Roboschool'):
-        pass
+    assert args['discount'] < 1.0, 'discount must be smaller than 1.0'
+    set_global_seeds(args['seed'])
 
-    env = gym.make(args.env_name)
+    print('Env {}'.format(env_name))
 
-    discrete = isinstance(env.action_space, gym.spaces.Discrete)
-    print('Env {}'.format(args.env_name))
-    if not discrete:
-        print('Action space high', env.action_space.high)
-        print('Action space low', env.action_space.low)
-
-    # Observation and action sizes
-    ob_dim = env.observation_space.shape[0]
-    ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
-
-    recurrent = args.recurrent
-    hidden_size = args.hidden_size
-
-    if discrete:
-        policy_net = DiscreteNNPolicy(nn_size=args.nn_size, state_dim=ob_dim, action_dim=ac_dim,
-                                      recurrent=recurrent, hidden_size=hidden_size)
+    if args['recurrent']:
+        args['frame_history_len'] = 1
     else:
-        policy_net = ContinuousNNPolicy(recurrent=recurrent, nn_size=args.nn_size, state_dim=ob_dim,
-                                        action_dim=ac_dim, hidden_size=hidden_size)
+        args['frame_history_len'] = 4
 
-    if enable_cuda:
-        policy_net.cuda()
+    env = make_env(env_name, args)
 
-    policy_optimizer = torch.optim.Adam(policy_net.parameters(), args.learning_rate)
+    policy_net = a2c.get_policy_net(env, args)
 
-    if args.nn_baseline:
-        gae_lambda = args.gae_lambda
-    else:
-        gae_lambda = None
+    policy_optimizer = torch.optim.Adam(policy_net.parameters(), args['learning_rate'])
 
-    if recurrent:
-        init_hidden_unit = np.zeros(shape=(hidden_size))
+    if args['recurrent']:
+        init_hidden_unit = np.zeros(shape=(args['hidden_size']))
     else:
         init_hidden_unit = None
 
     agent = pg.A2CAgent(policy_net, policy_optimizer,
                         init_hidden_unit=init_hidden_unit,
-                        nn_baseline=args.nn_baseline,
-                        lam=gae_lambda,
-                        value_coef=args.value_coef)
+                        nn_baseline=args['nn_baseline'],
+                        lam=args['gae_lambda'],
+                        value_coef=args['value_coef'])
 
-    pg.train(args.exp_name, env, agent, args.n_iter, args.discount, args.batch_size, max_path_length,
-             logdir=None, seed=args.seed)
+    max_path_length = args['ep_len'] if args['ep_len'] > 0 else None
+
+    pg.train(args['exp_name'], env, agent, args['n_iter'], args['discount'], args['batch_size'],
+             max_path_length, logdir=None, seed=args['seed'])

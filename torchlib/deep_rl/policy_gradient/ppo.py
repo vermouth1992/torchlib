@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from torchlib.common import eps, enable_cuda, FloatTensor, convert_numpy_to_tensor
 from torchlib.dataset.utils import create_data_loader
-from .a2c import A2CAgent
+from .a2c import A2CAgent, get_policy_net
 from .utils import compute_gae, compute_sum_of_rewards
 
 
@@ -26,7 +26,7 @@ class PPOAgent(A2CAgent):
         self.state_value_mean = np.mean(rewards)
         self.state_value_std = np.std(rewards)
 
-        print(self.state_value_mean, self.state_value_std)
+        # print(self.state_value_mean, self.state_value_std)
 
         advantage = compute_gae(paths, gamma, self.policy_net, self.lam, self.state_value_mean,
                                 self.state_value_std)
@@ -140,3 +140,28 @@ class PPOAgent(A2CAgent):
                 loss = policy_loss - entropy_loss * self.entropy_coef + self.value_coef * value_loss
                 loss.backward()
                 self.policy_optimizer.step()
+
+
+def make_default_parser():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('env_name', type=str)
+    parser.add_argument('--exp_name', type=str, default='ppo')
+    parser.add_argument('--discount', type=float, default=0.99)
+    parser.add_argument('--gae_lambda', type=float, default=0.98)
+    parser.add_argument('--clip_param', type=float, default=0.2)
+    parser.add_argument('--entropy_coef', type=float, default=0.01)
+    parser.add_argument('--value_coef', type=float, default=1.0)
+    parser.add_argument('--n_iter', '-n', type=int, default=100)
+    parser.add_argument('--batch_size', '-b', type=int, default=1000)
+    parser.add_argument('--recurrent', '-re', action='store_true')
+    parser.add_argument('--hidden_size', type=int, default=20)
+    parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=2e-3)
+    parser.add_argument('--nn_size', '-s', type=int, default=64)
+    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--seed', type=int, default=1)
+    return parser
+
+
+get_policy_net = get_policy_net
