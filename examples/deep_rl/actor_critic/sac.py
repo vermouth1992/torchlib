@@ -64,4 +64,4 @@ if __name__ == '__main__':
     else:
         agent.load_checkpoint(checkpoint_path=checkpoint_path)
         deep_rl.test(env, agent, num_episode=args['n_epochs'], render=args['render'], seed=args['seed'],
-                     frame_history_len=args['frame_history_len'])
+                     frame_history_len=1)
