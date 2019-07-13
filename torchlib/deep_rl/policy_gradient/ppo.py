@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from torchlib.common import eps, enable_cuda, FloatTensor, convert_numpy_to_tensor
+from torchlib.common import eps, FloatTensor, convert_numpy_to_tensor
 from torchlib.dataset.utils import create_data_loader
 from .a2c import A2CAgent, get_policy_net
 from .utils import compute_gae, compute_sum_of_rewards
@@ -53,9 +53,6 @@ class PPOAgent(A2CAgent):
                                              drop_last=False)
             old_log_prob = []
             for obs, hid, ac in data_loader:
-                obs = obs.type(FloatTensor)
-                hid = hid.type(FloatTensor)
-                ac = ac.type(FloatTensor)
                 old_distribution, _, _ = self.policy_net.forward(obs, hid)
                 old_log_prob.append(old_distribution.log_prob(ac))
             old_log_prob = torch.cat(old_log_prob, dim=0).cpu()
@@ -76,12 +73,6 @@ class PPOAgent(A2CAgent):
 
             for batch_sample in data_loader:
                 action, advantage, observation, discount_rewards, old_log_prob, mask = batch_sample
-                if enable_cuda:
-                    observation = observation.cuda()
-                    action = action.cuda()
-                    old_log_prob = old_log_prob.cuda()
-                    discount_rewards = discount_rewards.cuda()
-                    advantage = advantage.cuda()
 
                 self.policy_optimizer.zero_grad()
                 # update policy
@@ -150,7 +141,7 @@ def make_default_parser():
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
-    parser.add_argument('--entropy_coef', type=float, default=0.01)
+    parser.add_argument('--entropy_coef', type=float, default=0.001)
     parser.add_argument('--value_coef', type=float, default=1.0)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)

@@ -223,6 +223,7 @@ def get_policy_net(env, args):
     hidden_size = args['hidden_size']
 
     from torchlib.deep_rl.models.policy import ContinuousNNPolicy, DiscreteNNPolicy
+    from torchlib.deep_rl.envs import is_atari_env, is_ple_game
 
     if len(env.observation_space.shape) == 1:
         # low dimensional environment
@@ -238,12 +239,9 @@ def get_policy_net(env, args):
 
         return policy_net
 
-    elif len(env.observation_space.shape) == 3:
+    elif is_atari_env(env.spec.id) or is_ple_game(env.spec.id):
         if env.observation_space.shape[:2] == (84, 84):
-            if recurrent:
-                frame_history_len = 1
-            else:
-                frame_history_len = 4
+            frame_history_len = env.observation_space.shape[-1]
 
             from torchlib.deep_rl.models.policy import AtariPolicy
             policy_net = AtariPolicy(recurrent=recurrent, hidden_size=hidden_size,

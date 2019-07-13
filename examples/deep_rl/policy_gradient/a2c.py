@@ -11,7 +11,7 @@ import torch.optim
 import torchlib.deep_rl.policy_gradient as pg
 import torchlib.deep_rl.policy_gradient.a2c as a2c
 from torchlib import deep_rl
-from torchlib.deep_rl.envs import make_env
+from torchlib.deep_rl.envs import make_env, is_ple_game, is_atari_env
 from torchlib.utils.random import set_global_seeds
 
 # used for import self-defined envs
@@ -29,10 +29,11 @@ if __name__ == '__main__':
 
     print('Env {}'.format(env_name))
 
-    if args['recurrent']:
-        args['frame_history_len'] = 1
-    else:
-        args['frame_history_len'] = 4
+    if is_ple_game(env_name) or is_atari_env(env_name):
+        if args['recurrent']:
+            args['frame_history_len'] = 1
+        else:
+            args['frame_history_len'] = 4
 
     env = make_env(env_name, args)
 

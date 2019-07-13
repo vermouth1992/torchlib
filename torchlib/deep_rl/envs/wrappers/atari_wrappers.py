@@ -143,12 +143,10 @@ class StackFrame(gym.Wrapper):
     def __init__(self, env, frame_length=4):
         super(StackFrame, self).__init__(env)
         self.single_observation_space = env.observation_space
-        low = self.single_observation_space.low
-        high = self.single_observation_space.high
-        shape = list(self.single_observation_space.shape)
+        low = np.repeat(self.single_observation_space.low, frame_length, axis=-1)
+        high = np.repeat(self.single_observation_space.high, frame_length, axis=-1)
         dtype = self.single_observation_space.dtype
-        shape = shape.append(shape.pop() * frame_length)
-        self.observation_space = spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
+        self.observation_space = spaces.Box(low=low, high=high, shape=None, dtype=dtype)
         self.obs = deque(maxlen=frame_length)
         for _ in range(frame_length):
             self.obs.append(np.zeros(shape=self.single_observation_space.shape))

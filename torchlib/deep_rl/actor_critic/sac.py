@@ -178,7 +178,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
     total_steps = prefill_steps
 
     for epoch in range(n_epochs):
-        for _ in tqdm(range(epoch_length)):
+        for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, n_epochs)):
             sampler.sample()
 
             batch = sampler.random_batch(batch_size)
@@ -198,20 +198,23 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
         last_period_episode_reward = episode_rewards[-100:]
         mean_episode_reward = np.mean(last_period_episode_reward)
-        print('------------')
+
         if mean_episode_reward > best_mean_episode_reward:
             if checkpoint_path:
                 agent.save_checkpoint(checkpoint_path)
 
         std_episode_reward = np.std(last_period_episode_reward)
         best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-        print("Epoch {}/{}. Total timesteps {}".format(epoch + 1, n_epochs, total_steps))
+        print("Total timesteps {}".format(total_steps))
+        print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(np.mean(episode_rewards[-10:]),
+                                                                    np.std(episode_rewards[-10:])))
         print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
         print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
                                                      np.max(last_period_episode_reward)))
         print("Best mean reward {:.2f}".format(best_mean_episode_reward))
         print("Episodes %d" % len(episode_rewards))
         print("Alpha {:.2f}".format(agent.get_alpha()))
+        print('------------')
 
 
 def make_default_parser():
@@ -251,7 +254,7 @@ def get_policy_net_q_network(env, args):
         print('Action space high', env.action_space.high)
         print('Action space low', env.action_space.low)
 
-    if len(env.observation_space) == 1:
+    if len(env.observation_space.shape) == 1:
         # low dimensional environment
         ob_dim = env.observation_space.shape[0]
         ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
@@ -269,8 +272,8 @@ def get_policy_net_q_network(env, args):
 
         return policy_net, q_network
 
-    elif len(env.observation_space) == 3:
-        if env.observation_space[:2] == (84, 84):
+    elif len(env.observation_space.shape) == 3:
+        if env.observation_space.shape[:2] == (84, 84):
             # atari env
             from torchlib.deep_rl.models import AtariFeedForwardPolicy, DoubleAtariQModule
             policy_net = AtariFeedForwardPolicy(num_channel=args['frame_history_len'],

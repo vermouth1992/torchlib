@@ -7,7 +7,7 @@ import torch.optim
 import torchlib.deep_rl.actor_critic.sac as sac
 from torchlib import deep_rl
 from torchlib.common import device
-from torchlib.deep_rl.envs import make_env
+from torchlib.deep_rl.envs import make_env, is_ple_game, is_atari_env
 
 if __name__ == '__main__':
     parser = sac.make_default_parser()
@@ -18,6 +18,11 @@ if __name__ == '__main__':
 
     args = vars(parser.parse_args())
     pprint.pprint(args)
+
+    if is_atari_env(env_name=args['env_name']) or is_ple_game(env_name=args['env_name']):
+        args['frame_history_len'] = 4
+    else:
+        args['frame_history_len'] = 1
 
     env = make_env(args['env_name'], args)
 

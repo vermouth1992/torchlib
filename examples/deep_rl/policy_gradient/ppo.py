@@ -11,7 +11,7 @@ import torch.optim
 import torchlib.deep_rl.policy_gradient as pg
 import torchlib.deep_rl.policy_gradient.ppo as ppo
 from torchlib import deep_rl
-from torchlib.deep_rl.envs import make_env
+from torchlib.deep_rl.envs import make_env, is_ple_game, is_atari_env
 from torchlib.utils.random import set_global_seeds
 
 if __name__ == '__main__':
@@ -19,9 +19,20 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     pprint.pprint(args)
 
-    assert args['discount'] < 1.0, 'discount must be smaller than 1.0'
+    env_name = args['env_name']
 
+    assert args['discount'] < 1.0, 'discount must be smaller than 1.0'
     set_global_seeds(args['seed'])
+
+    print('Env {}'.format(args['env_name']))
+
+    if is_ple_game(env_name) or is_atari_env(env_name):
+        if args['recurrent']:
+            args['frame_history_len'] = 1
+        else:
+            args['frame_history_len'] = 4
+    else:
+        args['frame_history_len'] = 1
 
     env = make_env(args['env_name'], args)
 

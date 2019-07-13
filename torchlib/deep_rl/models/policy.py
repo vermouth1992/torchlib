@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from torchlib.common import FloatTensor
 from torchlib.deep_rl.utils.distributions import FixedNormalTanh
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
@@ -165,7 +166,7 @@ class ContinuousNNPolicy(NNPolicy, ContinuousPolicy):
                                                  nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
-class ContinuousNNFeedForwardPolicy(NNPolicy, ContinuousPolicy):
+class ContinuousNNFeedForwardPolicy(ContinuousNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
         super(ContinuousNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
                                                             nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
@@ -181,7 +182,7 @@ class DiscreteNNPolicy(NNPolicy, DiscretePolicy):
                                                nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
-class DiscreteNNFeedForwardPolicy(NNPolicy, DiscretePolicy):
+class DiscreteNNFeedForwardPolicy(DiscreteNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
         super(DiscreteNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
                                                           nn_size=nn_size, state_dim=state_dim,
@@ -198,12 +199,13 @@ class AtariPolicy(AtariCNNPolicy, DiscretePolicy):
                                           action_dim=action_dim)
 
     def forward(self, state, hidden):
+        state = state.type(FloatTensor)
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
         return super(AtariPolicy, self).forward(state, hidden)
 
 
-class AtariFeedForwardPolicy(AtariCNNPolicy, DiscretePolicy):
+class AtariFeedForwardPolicy(AtariPolicy):
     def __init__(self, num_channel, action_dim):
         super(AtariFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
                                                      num_channel=num_channel, action_dim=action_dim)
