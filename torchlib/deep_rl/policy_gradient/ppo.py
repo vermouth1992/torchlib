@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from torchlib.common import eps, FloatTensor, convert_numpy_to_tensor
+from torchlib.common import eps, FloatTensor, convert_numpy_to_tensor, move_tensor_to_gpu
 from torchlib.dataset.utils import create_data_loader
 from .a2c import A2CAgent, get_policy_net
 from .utils import compute_gae, compute_sum_of_rewards
@@ -41,18 +41,21 @@ class PPOAgent(A2CAgent):
         actions = np.concatenate([path['actions'] for path in paths])
 
         # convert to torch tensor
-        actions = convert_numpy_to_tensor(actions)
-        advantage = convert_numpy_to_tensor(advantage)
-        rewards = convert_numpy_to_tensor(rewards)
-        observation = convert_numpy_to_tensor(observation)
-        hidden = convert_numpy_to_tensor(hidden)
-        mask = convert_numpy_to_tensor(mask)
+        actions = convert_numpy_to_tensor(actions, location='cpu')
+        advantage = convert_numpy_to_tensor(advantage, location='cpu')
+        rewards = convert_numpy_to_tensor(rewards, location='cpu')
+        observation = convert_numpy_to_tensor(observation, location='cpu')
+        hidden = convert_numpy_to_tensor(hidden, location='cpu')
+        mask = convert_numpy_to_tensor(mask, location='cpu')
 
         with torch.no_grad():
             data_loader = create_data_loader((observation, hidden, actions), batch_size=32, shuffle=False,
                                              drop_last=False)
             old_log_prob = []
             for obs, hid, ac in data_loader:
+                obs = move_tensor_to_gpu(obs)
+                hid = move_tensor_to_gpu(hid)
+                ac = move_tensor_to_gpu(ac)
                 old_distribution, _, _ = self.policy_net.forward(obs, hid)
                 old_log_prob.append(old_distribution.log_prob(ac))
             old_log_prob = torch.cat(old_log_prob, dim=0).cpu()
@@ -72,7 +75,8 @@ class PPOAgent(A2CAgent):
                                           requires_grad=False).type(FloatTensor)
 
             for batch_sample in data_loader:
-                action, advantage, observation, discount_rewards, old_log_prob, mask = batch_sample
+                action, advantage, observation, discount_rewards, old_log_prob, mask = \
+                    move_tensor_to_gpu(batch_sample)
 
                 self.policy_optimizer.zero_grad()
                 # update policy
