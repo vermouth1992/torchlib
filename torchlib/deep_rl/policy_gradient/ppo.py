@@ -14,8 +14,9 @@ from .utils import compute_gae, compute_sum_of_rewards
 
 class PPOAgent(A2CAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit, lam=1., clip_param=0.2,
-                 entropy_coef=0.01, value_coef=1.):
-        super(PPOAgent, self).__init__(policy_net, policy_optimizer, init_hidden_unit, True, lam, value_coef)
+                 entropy_coef=0.01, value_coef=1., initial_state_mean=0., initial_state_std=0.):
+        super(PPOAgent, self).__init__(policy_net, policy_optimizer, init_hidden_unit, True, lam,
+                                       value_coef, initial_state_mean, initial_state_std)
         self.clip_param = clip_param
         self.entropy_coef = entropy_coef
 
@@ -154,6 +155,8 @@ def make_default_parser():
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
     parser.add_argument('--learning_rate', '-lr', type=float, default=2e-3)
     parser.add_argument('--nn_size', '-s', type=int, default=64)
+    parser.add_argument('--initial_state_mean', type=float, default=0.)
+    parser.add_argument('--initial_state_std', type=float, default=0.)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--seed', type=int, default=1)
     return parser

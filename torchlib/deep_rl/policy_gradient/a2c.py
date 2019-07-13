@@ -20,7 +20,7 @@ from .utils import compute_gae, compute_sum_of_rewards
 
 class A2CAgent(BaseAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit=None, nn_baseline=True,
-                 lam=None, value_coef=0.5):
+                 lam=None, value_coef=0.5, initial_state_mean=0., initial_state_std=0.):
         super(A2CAgent, self).__init__()
         self.policy_net = policy_net
         if enable_cuda:
@@ -32,8 +32,8 @@ class A2CAgent(BaseAgent):
         self.value_coef = value_coef
         self.recurrent = init_hidden_unit is not None
 
-        self.state_value_mean = -500.
-        self.state_value_std = 0.
+        self.state_value_mean = initial_state_mean
+        self.state_value_std = initial_state_std
 
         if init_hidden_unit is not None:
             self.init_hidden_unit = init_hidden_unit.astype(np.float32)
@@ -202,6 +202,8 @@ def make_default_parser():
     parser.add_argument('--recurrent', '-re', action='store_true')
     parser.add_argument('--hidden_size', type=int, default=20)
     parser.add_argument('--nn_size', '-s', type=int, default=64)
+    parser.add_argument('--initial_state_mean', type=float, default=0.)
+    parser.add_argument('--initial_state_std', type=float, default=0.)
     parser.add_argument('--value_coef', type=float, default=1.0)
     parser.add_argument('--seed', type=int, default=1)
     return parser

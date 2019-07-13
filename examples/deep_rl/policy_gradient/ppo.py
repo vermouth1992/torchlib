@@ -49,7 +49,10 @@ if __name__ == '__main__':
                         init_hidden_unit=init_hidden_unit,
                         lam=args['gae_lambda'],
                         clip_param=args['clip_param'],
-                        entropy_coef=args['entropy_coef'], value_coef=args['value_coef'])
+                        entropy_coef=args['entropy_coef'],
+                        value_coef=args['value_coef'],
+                        initial_state_mean=args['initial_state_mean'],
+                        initial_state_std=args['initial_state_std'])
 
     checkpoint_path = 'checkpoint/{}_ppo.ckpt'.format(args['env_name'])
 

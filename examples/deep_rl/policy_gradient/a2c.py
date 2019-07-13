@@ -50,7 +50,9 @@ if __name__ == '__main__':
                         init_hidden_unit=init_hidden_unit,
                         nn_baseline=args['nn_baseline'],
                         lam=args['gae_lambda'],
-                        value_coef=args['value_coef'])
+                        value_coef=args['value_coef'],
+                        initial_state_mean=args['initial_state_mean'],
+                        initial_state_std=args['initial_state_std'])
 
     max_path_length = args['ep_len'] if args['ep_len'] > 0 else None
 
