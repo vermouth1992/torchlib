@@ -73,21 +73,21 @@ class ReplayPool:
 
 
 class SimpleReplayPool(ReplayPool):
-    def __init__(self, observation_shape, action_shape, *args, **kwargs):
+    def __init__(self, observation_shape, action_shape, observation_dtype, *args, **kwargs):
         self._observation_shape = observation_shape
         self._action_shape = action_shape
 
         fields = {
             'observations': {
                 'shape': self._observation_shape,
-                'dtype': 'float32'
+                'dtype': observation_dtype
             },
             # It's a bit memory inefficient to save the observations twice,
             # but it makes the code *much* easier since you no longer have
             # to worry about termination conditions.
             'next_observations': {
                 'shape': self._observation_shape,
-                'dtype': 'float32'
+                'dtype': observation_dtype
             },
             'actions': {
                 'shape': self._action_shape,

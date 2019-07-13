@@ -166,9 +166,11 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
     env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
 
     sampler = SimpleSampler(max_episode_length=max_episode_length, prefill_steps=prefill_steps)
+
     replay_pool = SimpleReplayPool(
         observation_shape=env.observation_space.shape,
         action_shape=env.action_space.shape,
+        observation_dtype=str(env.observation_space.dtype),
         max_size=replay_pool_size)
 
     sampler.initialize(env, agent, replay_pool)
