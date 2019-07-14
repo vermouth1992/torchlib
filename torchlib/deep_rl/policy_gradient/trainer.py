@@ -23,7 +23,7 @@ def train(exp, env, agent: A2CAgent, n_iter, gamma, min_timesteps_per_batch, max
     else:
         writer = None
 
-    best_avg_return = None
+    best_avg_return = -np.inf
 
     start_time = time.time()
 
@@ -51,7 +51,7 @@ def train(exp, env, agent: A2CAgent, n_iter, gamma, min_timesteps_per_batch, max
         max_return = np.max(returns)
         min_return = np.min(returns)
 
-        if best_avg_return is None or avg_return > best_avg_return:
+        if avg_return >= best_avg_return:
             best_avg_return = avg_return
             if checkpoint_path:
                 print('Saving checkpoint to {}'.format(checkpoint_path))
