@@ -78,8 +78,6 @@ class SimpleReplayPool(ReplayPool):
         self._observation_shape = observation_shape
         self._action_shape = action_shape
 
-        print(observation_dtype)
-
         fields = {
             'observations': {
                 'shape': self._observation_shape,

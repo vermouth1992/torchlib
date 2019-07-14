@@ -43,6 +43,8 @@ class SoftActorCritic(BaseAgent):
 
         hard_update(self.target_q_network, self.q_network)
 
+        if log_alpha_tensor is not None:
+            self._min_alpha = alpha
         self._alpha = alpha
         self._discount = discount
         self._tau = tau
@@ -117,21 +119,18 @@ class SoftActorCritic(BaseAgent):
             alpha_loss.backward()
             self.alpha_optimizer.step()
 
-            self._alpha = self._log_alpha_tensor.exp()
+            self._alpha = max(self._log_alpha_tensor.exp().item(), self._min_alpha)
 
-        self.q_optimizer.zero_grad()
-        q_values_loss.backward()
-        self.q_optimizer.step()
+            self.q_optimizer.zero_grad()
+            q_values_loss.backward()
+            self.q_optimizer.step()
 
-        self.policy_optimizer.zero_grad()
-        policy_loss.backward()
-        self.policy_optimizer.step()
+            self.policy_optimizer.zero_grad()
+            policy_loss.backward()
+            self.policy_optimizer.step()
 
     def get_alpha(self):
-        if self._log_alpha_tensor is not None:
-            return self._alpha.item()
-        else:
-            return self._alpha
+        return self._alpha
 
     def predict(self, state):
         state = np.expand_dims(state, axis=0)
