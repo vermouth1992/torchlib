@@ -146,7 +146,7 @@ def make_default_parser():
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
-    parser.add_argument('--entropy_coef', type=float, default=0.001)
+    parser.add_argument('--entropy_coef', type=float, default=0.01)
     parser.add_argument('--value_coef', type=float, default=1.0)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)

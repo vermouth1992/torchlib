@@ -28,7 +28,7 @@ class ReplayPool:
         for field_name, field_attrs in fields.items():
             field_shape = [self._max_size] + list(field_attrs['shape'])
             initializer = field_attrs.get('initializer', np.zeros)
-            setattr(self, field_name, initializer(field_shape))
+            setattr(self, field_name, initializer(field_shape, dtype=field_attrs['dtype']))
 
     def _advance(self, count=1):
         self._pointer = (self._pointer + count) % self._max_size
@@ -73,9 +73,12 @@ class ReplayPool:
 
 
 class SimpleReplayPool(ReplayPool):
-    def __init__(self, observation_shape, action_shape, observation_dtype, *args, **kwargs):
+    def __init__(self, observation_shape, action_shape, observation_dtype, action_dtype,
+                 *args, **kwargs):
         self._observation_shape = observation_shape
         self._action_shape = action_shape
+
+        print(observation_dtype)
 
         fields = {
             'observations': {
@@ -91,7 +94,7 @@ class SimpleReplayPool(ReplayPool):
             },
             'actions': {
                 'shape': self._action_shape,
-                'dtype': 'float32'
+                'dtype': action_dtype
             },
             'rewards': {
                 'shape': [],

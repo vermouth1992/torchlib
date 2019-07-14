@@ -15,7 +15,7 @@ import torch.nn.functional as F
 import torch.optim
 from tqdm.auto import tqdm
 
-from torchlib.common import FloatTensor, LongTensor, enable_cuda
+from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random import set_global_seeds
 from torchlib.utils.weight import soft_update, hard_update
@@ -72,17 +72,13 @@ class SoftActorCritic(BaseAgent):
         Returns: None
 
         """
-        obs = torch.from_numpy(obs).type(FloatTensor)
-        if self.discrete:
-            actions = torch.from_numpy(actions).type(LongTensor)
-        else:
-            actions = torch.from_numpy(actions).type(FloatTensor)
-        next_obs = torch.from_numpy(next_obs).type(FloatTensor)
-        done = torch.from_numpy(done).type(FloatTensor)
-        reward = torch.from_numpy(reward).type(FloatTensor)
+        obs = convert_numpy_to_tensor(obs)
+        actions = convert_numpy_to_tensor(actions)
+        next_obs = convert_numpy_to_tensor(next_obs)
+        done = convert_numpy_to_tensor(done).type(FloatTensor)
+        reward = convert_numpy_to_tensor(reward)
 
         # q loss
-
         q_values, q_values2 = self.q_network.forward(obs, actions, minimum=False)
 
         with torch.no_grad():
@@ -171,6 +167,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         observation_shape=env.observation_space.shape,
         action_shape=env.action_space.shape,
         observation_dtype=str(env.observation_space.dtype),
+        action_dtype=str(env.action_space.dtype),
         max_size=replay_pool_size)
 
     sampler.initialize(env, agent, replay_pool)
@@ -214,8 +211,8 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
                                                      np.max(last_period_episode_reward)))
         print("Best mean reward {:.2f}".format(best_mean_episode_reward))
-        print("Episodes %d" % len(episode_rewards))
-        print("Alpha {:.2f}".format(agent.get_alpha()))
+        print("Episodes {}".format(len(episode_rewards)))
+        print("Alpha {:.4f}".format(agent.get_alpha()))
         print('------------')
 
 
@@ -229,7 +226,7 @@ def make_default_parser():
     parser.add_argument('--n_epochs', type=int, default=500)
     parser.add_argument('--alpha', type=float, default=0.2)
     parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--learning_rate', type=float, default=2e-3)
     parser.add_argument('--max_episode_length', type=int, default=1000)
     parser.add_argument('--no_automatic_entropy_tuning', action='store_true')
     parser.add_argument('--epoch_length', type=int, default=1000)
