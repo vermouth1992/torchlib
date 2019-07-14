@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchlib.common import FloatTensor
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 from torchlib.utils.weight import fanin_init
 
@@ -139,6 +140,7 @@ class AtariQModule(nn.Module):
         )
 
     def forward(self, state, action=None):
+        state = state.type(FloatTensor)
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
         out = self.model.forward(state)
@@ -175,6 +177,7 @@ class AtariDuelQModule(nn.Module):
         self.value_fc = nn.Linear(512, 1)
 
     def forward(self, x):
+        x = x.type(FloatTensor)
         x = x / 255.0
         x = x.permute(0, 3, 1, 2)
         x = self.model.forward(x)
