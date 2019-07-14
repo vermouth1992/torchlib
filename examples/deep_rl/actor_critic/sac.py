@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser = sac.make_default_parser()
 
     parser.add_argument('--nn_size', type=int, default=64)
+    parser.add_argument('--continue', action='store_true')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--render', action='store_true')
 
@@ -37,7 +38,10 @@ if __name__ == '__main__':
     automatic_entropy_tuning = not args['no_automatic_entropy_tuning']
 
     if automatic_entropy_tuning:
-        target_entropy = -np.prod(env.action_space.shape)
+        if isinstance(env.action_space, gym.spaces.Discrete):
+            target_entropy = -env.action_space.n
+        else:
+            target_entropy = -np.prod(env.action_space.shape)
         log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)
         alpha_optimizer = torch.optim.Adam([log_alpha_tensor], lr=learning_rate)
 
@@ -57,6 +61,8 @@ if __name__ == '__main__':
     checkpoint_path = 'checkpoint/{}_SAC.ckpt'.format(args['env_name'])
 
     if not args['test']:
+        if args['continue']:
+            agent.load_checkpoint(checkpoint_path=checkpoint_path)
         sac.train(args['exp_name'], env, agent, args['n_epochs'], max_episode_length=args['max_episode_length'],
                   prefill_steps=args['prefill_steps'], epoch_length=args['epoch_length'],
                   replay_pool_size=args['replay_pool_size'], batch_size=args['batch_size'],
