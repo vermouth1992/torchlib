@@ -144,11 +144,10 @@ class SimpleSampler(Sampler):
 
         self._episode_length = 0
         self._episode_return = 0
-        self._last_episode_return = 0
-        self._max_episode_return = -np.inf
         self._n_episodes = 0
         self._current_observation = None
         self._total_samples = 0
+        self._episode_rewards = []
 
     def sample(self, policy=None):
         policy = self.policy if policy is None else policy
@@ -171,22 +170,15 @@ class SimpleSampler(Sampler):
         if terminal or self._episode_length >= self._max_episode_length:
             self._current_observation = self.env.reset()
             self._episode_length = 0
-            self._max_episode_return = max(self._max_episode_return,
-                                           self._episode_return)
-            self._last_episode_return = self._episode_return
-
+            self._episode_rewards.append(self._episode_return)
             self._episode_return = 0
             self._n_episodes += 1
 
         else:
             self._current_observation = next_observation
 
-    def get_statistics(self):
-        statistics = {
-            'MaxEpReturn': self._max_episode_return,
-            'LastEpReturn': self._last_episode_return,
-            'Episodes': self._n_episodes,
-            'TimestepsSoFar': self._total_samples,
-        }
+    def get_total_steps(self):
+        return self._total_samples
 
-        return statistics
+    def get_episode_rewards(self):
+        return self._episode_rewards.copy()

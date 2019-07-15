@@ -63,7 +63,7 @@ if __name__ == '__main__':
     if not args['test']:
         if args['continue']:
             agent.load_checkpoint(checkpoint_path=checkpoint_path)
-        sac.train(args['exp_name'], env, agent, args['n_epochs'], max_episode_length=args['max_episode_length'],
+        sac.train(env, agent, args['n_epochs'], max_episode_length=args['max_episode_length'],
                   prefill_steps=args['prefill_steps'], epoch_length=args['epoch_length'],
                   replay_pool_size=args['replay_pool_size'], batch_size=args['batch_size'],
                   seed=args['seed'], checkpoint_path=checkpoint_path)

@@ -5,7 +5,6 @@ The advantage is that it automatically incorporates exploration by encouraging l
 """
 
 import copy
-import os
 
 import numpy as np
 import torch
@@ -148,17 +147,10 @@ class SoftActorCritic(BaseAgent):
         self.policy_net.load_state_dict(state_dict)
 
 
-def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefill_steps, epoch_length,
+def train(env, agent: SoftActorCritic, n_epochs, max_episode_length, prefill_steps, epoch_length,
           replay_pool_size, batch_size, seed, checkpoint_path=None):
-    from gym import wrappers
-    from torchlib.deep_rl.envs.wrappers import get_wrapper_by_name
-
     set_global_seeds(seed)
     env.seed(seed)
-
-    # create a Monitor for env
-    expt_dir = '/tmp/{}'.format(exp)
-    env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
 
     sampler = SimpleSampler(max_episode_length=max_episode_length, prefill_steps=prefill_steps)
 
@@ -172,8 +164,6 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
     sampler.initialize(env, agent, replay_pool)
 
     best_mean_episode_reward = -np.inf
-
-    total_steps = prefill_steps
 
     for epoch in range(n_epochs):
         for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, n_epochs)):
@@ -190,10 +180,8 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
             agent.update(obs=obs, actions=actions, next_obs=next_obs, done=done, reward=reward)
             agent.update_target()
 
-            total_steps += 1
-
         # logging
-        episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+        episode_rewards = sampler.get_episode_rewards()
         last_period_episode_reward = episode_rewards[-100:]
         mean_episode_reward = np.mean(last_period_episode_reward)
 
@@ -203,7 +191,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
 
         std_episode_reward = np.std(last_period_episode_reward)
         best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-        print("Total timesteps {}".format(total_steps))
+        print("Total timesteps {}".format(sampler.get_total_steps()))
         print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(np.mean(episode_rewards[-10:]),
                                                                     np.std(episode_rewards[-10:])))
         print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
@@ -219,7 +207,6 @@ def make_default_parser():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default='sac')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--n_epochs', type=int, default=500)
