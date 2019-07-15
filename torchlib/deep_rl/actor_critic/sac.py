@@ -16,7 +16,7 @@ import torch.optim
 from tqdm.auto import tqdm
 
 from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
-from torchlib.deep_rl import BaseAgent, RandomAgent
+from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random import set_global_seeds
 from torchlib.utils.weight import soft_update, hard_update
 from .utils import SimpleSampler, SimpleReplayPool
@@ -169,7 +169,7 @@ def train(exp, env, agent: SoftActorCritic, n_epochs, max_episode_length, prefil
         action_dtype=str(env.action_space.dtype),
         max_size=replay_pool_size)
 
-    sampler.initialize(env, RandomAgent(env.action_space), replay_pool)
+    sampler.initialize(env, agent, replay_pool)
 
     best_mean_episode_reward = -np.inf
 
