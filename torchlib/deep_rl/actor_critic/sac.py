@@ -121,13 +121,13 @@ class SoftActorCritic(BaseAgent):
 
             self._alpha = max(self._log_alpha_tensor.exp().item(), self._min_alpha)
 
-            self.q_optimizer.zero_grad()
-            q_values_loss.backward()
-            self.q_optimizer.step()
+        self.q_optimizer.zero_grad()
+        q_values_loss.backward()
+        self.q_optimizer.step()
 
-            self.policy_optimizer.zero_grad()
-            policy_loss.backward()
-            self.policy_optimizer.step()
+        self.policy_optimizer.zero_grad()
+        policy_loss.backward()
+        self.policy_optimizer.step()
 
     def get_alpha(self):
         return self._alpha
@@ -219,7 +219,7 @@ def make_default_parser():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default='vpg')
+    parser.add_argument('--exp_name', type=str, default='sac')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--n_epochs', type=int, default=500)
