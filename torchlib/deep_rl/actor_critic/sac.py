@@ -213,7 +213,7 @@ def make_default_parser():
     parser.add_argument('--alpha', type=float, default=0.2)
     parser.add_argument('--tau', type=float, default=5e-3)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
-    parser.add_argument('--max_episode_length', type=int, default=1000)
+    parser.add_argument('--max_episode_length', type=float, default=1000)
     parser.add_argument('--no_automatic_entropy_tuning', action='store_true')
     parser.add_argument('--epoch_length', type=int, default=1000)
     parser.add_argument('--prefill_steps', type=int, default=1000)
