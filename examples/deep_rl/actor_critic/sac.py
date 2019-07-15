@@ -12,7 +12,7 @@ from torchlib.deep_rl.envs import make_env, is_ple_game, is_atari_env
 if __name__ == '__main__':
     parser = sac.make_default_parser()
 
-    parser.add_argument('--nn_size', type=int, default=64)
+    parser.add_argument('--nn_size', type=int, default=256)
     parser.add_argument('--continue', action='store_true')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--render', action='store_true')
