@@ -176,13 +176,29 @@ class AtariDuelQModule(nn.Module):
         self.adv_fc = nn.Linear(512, action_dim)
         self.value_fc = nn.Linear(512, 1)
 
-    def forward(self, x):
-        x = x.type(FloatTensor)
-        x = x / 255.0
-        x = x.permute(0, 3, 1, 2)
-        x = self.model.forward(x)
-        value = self.value_fc(x)
-        adv = self.adv_fc(x)
+    def forward(self, state, action=None):
+        state = state.type(FloatTensor)
+        state = state / 255.0
+        state = state.permute(0, 3, 1, 2)
+        state = self.model.forward(state)
+        value = self.value_fc(state)
+        adv = self.adv_fc(state)
         adv = adv - torch.mean(adv, dim=-1, keepdim=True)
-        x = value + adv
-        return x
+        out = value + adv
+        if action is not None:
+            out = out.gather(1, action.unsqueeze(1)).squeeze()
+        return out
+
+
+class DoubleAtariDuelQModule(nn.Module):
+    def __init__(self, frame_history_len, action_dim):
+        super(DoubleAtariDuelQModule, self).__init__()
+        self.critic1 = AtariDuelQModule(frame_history_len, action_dim)
+        self.critic2 = AtariDuelQModule(frame_history_len, action_dim)
+
+    def forward(self, state, action=None, minimum=True):
+        x1 = self.critic1.forward(state, action)
+        x2 = self.critic2.forward(state, action)
+        if minimum:
+            return torch.min(x1, x2)
+        return x1, x2
