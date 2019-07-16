@@ -9,8 +9,10 @@ The steps are:
 
 import torch
 
+import torchlib.deep_rl.policy_gradient as pg
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent
+from .environment import VirtualEnv
 from .model import Model
 from .planner import Planner
 from .policy import ImitationPolicy
@@ -121,5 +123,27 @@ class ModelBasedPPOAgent(ModelBasedAgent):
     """
     Train model using real world interactions and update policy using PPO in simulated environments.
     """
-    def __init__(self, model):
+
+    def __init__(self, model, ppo_agent: pg.PPOAgent, real_env, ppo_training_params=):
         super(ModelBasedPPOAgent, self).__init__(model=model)
+        self.policy = ppo_agent
+        self.world_model = VirtualEnv(model, real_env)
+
+    def save_checkpoint(self, checkpoint_path):
+        print('Saving checkpoint to {}'.format(checkpoint_path))
+        states = {
+            'model': self.model.state_dict,
+            'policy': self.policy.state_dict
+        }
+        torch.save(states, checkpoint_path)
+
+    def load_checkpoint(self, checkpoint_path):
+        states = torch.load(checkpoint_path, map_location=map_location)
+        self.model.load_state_dict(states['model'])
+        self.policy.load_state_dict(states['policy'])
+
+    def predict(self, state):
+        return self.policy.predict(state)
+
+    def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+        pg.train(None, self.world_model, self.policy, epoch, )

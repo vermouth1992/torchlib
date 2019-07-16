@@ -162,12 +162,19 @@ class A2CAgent(BaseAgent):
             loss.backward()
             self.policy_optimizer.step()
 
+    @property
+    def state_dict(self):
+        return self.policy_net.state_dict()
+
+    def load_state_dict(self, states):
+        self.policy_net.load_state_dict(states)
+
     def save_checkpoint(self, checkpoint_path):
-        torch.save(self.policy_net.state_dict(), checkpoint_path)
+        torch.save(self.state_dict, checkpoint_path)
 
     def load_checkpoint(self, checkpoint_path):
         state_dict = torch.load(checkpoint_path)
-        self.policy_net.load_state_dict(state_dict)
+        self.load_state_dict(state_dict)
 
     def predict_state_value(self, state):
         """ compute the state value using nn baseline

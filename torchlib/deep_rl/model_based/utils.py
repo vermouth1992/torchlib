@@ -263,6 +263,12 @@ class EpisodicDataset(object):
             trajectory = self.memory.popleft()
             self.size -= len(trajectory.action)
 
+    def get_initial_states(self):
+        init_states = []
+        for trajectory in self.memory:
+            init_states.append(trajectory.state[0].copy())
+        return init_states
+
     def rollout_iterator(self):
         for trajectory in self.memory:
             states = trajectory.state[:-1]

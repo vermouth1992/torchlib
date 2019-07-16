@@ -49,6 +49,13 @@ class BaseAgent(object):
         """
         pass
 
+    @property
+    def state_dict(self):
+        return {}
+
+    def load_state_dict(self, states):
+        pass
+
 
 class RandomAgent(BaseAgent):
     def __init__(self, action_space: Space):
