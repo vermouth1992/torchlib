@@ -1,5 +1,6 @@
 from .atari_wrappers import *
 from .flappy_bird_wrappers import *
+from .model_based import model_based_wrapper_dict
 
 
 def get_wrapper_by_name(env, classname):
@@ -11,3 +12,9 @@ def get_wrapper_by_name(env, classname):
             currentenv = currentenv.env
         else:
             raise ValueError("Couldn't find wrapper named %s" % classname)
+
+
+def get_model_based_wrapper(env_name):
+    if env_name not in model_based_wrapper_dict:
+        raise ValueError('No cost fn defined for {}'.format(env_name))
+    return model_based_wrapper_dict[env_name]

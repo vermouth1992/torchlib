@@ -58,6 +58,9 @@ class ModelBasedPlanAgent(ModelBasedAgent):
         self.model.eval()
         return self.planner.predict(state)
 
+    def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+        pass
+
 
 class ModelBasedDAggerAgent(ModelBasedPlanAgent):
     """
@@ -124,10 +127,15 @@ class ModelBasedPPOAgent(ModelBasedAgent):
     Train model using real world interactions and update policy using PPO in simulated environments.
     """
 
-    def __init__(self, model, ppo_agent: pg.PPOAgent, real_env, ppo_training_params=):
+    def __init__(self, model, ppo_agent: pg.PPOAgent, real_env, **kwargs):
         super(ModelBasedPPOAgent, self).__init__(model=model)
         self.policy = ppo_agent
         self.world_model = VirtualEnv(model, real_env)
+
+        self.gamma = kwargs.get('gamma', 0.99)
+        self.min_timesteps_per_batch = kwargs.get('min_timesteps_per_batch', 1000)
+        self.max_path_length = kwargs.get('max_path_length', 1000)
+        self.seed = kwargs.get('seed', 1996)
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -145,5 +153,9 @@ class ModelBasedPPOAgent(ModelBasedAgent):
     def predict(self, state):
         return self.policy.predict(state)
 
-    def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
-        pg.train(None, self.world_model, self.policy, epoch, )
+    def fit_policy(self, dataset: Dataset, epoch=5, batch_size=128, verbose=True):
+        self.world_model.set_initial_states_pool(dataset.get_initial_states())
+        pg.train(exp=None, env=self.world_model, agent=self.policy, n_iter=epoch,
+                 gamma=self.gamma, min_timesteps_per_batch=self.min_timesteps_per_batch,
+                 max_path_length=self.max_path_length, logdir=None,
+                 seed=self.seed, checkpoint_path=None)

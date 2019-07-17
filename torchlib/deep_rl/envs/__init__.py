@@ -3,8 +3,8 @@ Define a bunch of new environments to fast deep RL algorithm verifying
 """
 
 from torchlib import deep_rl
-from torchlib.deep_rl.envs.cartpole_continuous import CartPoleEnvContinuous, CartPoleEnvCost
-from torchlib.deep_rl.envs.pendulum import PendulumEnvCost
+from torchlib.deep_rl.envs.cartpole_continuous import CartPoleEnvContinuous
+from torchlib.deep_rl.envs.pendulum import PendulumEnvNormalized
 
 __all__ = ['deep_rl']
 

@@ -44,6 +44,7 @@ if __name__ == '__main__':
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
     from torchlib.deep_rl.model_based.agent import ModelBasedPlanAgent, ModelBasedDAggerAgent
     import torchlib.deep_rl.model_based.trainer as trainer
+    from torchlib.deep_rl.envs.wrappers import get_model_based_wrapper
 
     __all__ = ['deep_rl']
 
@@ -53,6 +54,8 @@ if __name__ == '__main__':
         __all__.append('roboschool')
 
     env = gym.make(args['env_name'])
+    wrapper = get_model_based_wrapper(args['env_name'])
+    env = wrapper(env)
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
 
@@ -82,11 +85,11 @@ if __name__ == '__main__':
     model = DeterministicModel(dynamics_model=dynamics_model, optimizer=optimizer)
 
     if args['planner'] == 'random':
-        planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn,
+        planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn_batch,
                                           horizon=args['horizon'],
                                           num_random_action_selection=args['num_actions'])
     elif args['planner'] == 'uct':
-        planner = UCTPlanner(model, action_sampler, env.cost_fn, horizon=args['horizon'],
+        planner = UCTPlanner(model, action_sampler, env.cost_fn_batch, horizon=args['horizon'],
                              num_reads=args['num_actions'])
     else:
         raise ValueError('Unknown planner {}'.format(args['planner']))

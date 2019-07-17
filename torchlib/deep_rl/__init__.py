@@ -18,23 +18,10 @@ register(
     reward_threshold=475.0,
 )
 
-register(
-    id='CartPoleCost-v0',
-    entry_point='torchlib.deep_rl.envs:CartPoleEnvCost',
-    max_episode_steps=200,
-    reward_threshold=195.0,
-)
 
 register(
-    id='CartPoleCost-v1',
-    entry_point='torchlib.deep_rl.envs:CartPoleEnvCost',
-    max_episode_steps=500,
-    reward_threshold=475.0,
-)
-
-register(
-    id='PendulumCost-v0',
-    entry_point='torchlib.deep_rl.envs:PendulumEnvCost',
+    id='PendulumNormalized-v0',
+    entry_point='torchlib.deep_rl.envs:PendulumEnvNormalized',
     max_episode_steps=200,
 )
 
