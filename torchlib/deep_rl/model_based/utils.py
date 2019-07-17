@@ -1,6 +1,7 @@
 from collections import OrderedDict, deque, namedtuple
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 from torchlib.dataset.utils import create_data_loader
 from torchlib.deep_rl import BaseAgent
@@ -279,7 +280,7 @@ class EpisodicDataset(object):
             dones[-1] = True
             yield states, actions, next_states, rewards, dones
 
-    def random_iterator(self, batch_size):
+    def random_iterator(self, batch_size, train_val_split_ratio=0.2):
         states = []
         actions = []
         rewards = []
@@ -300,10 +301,19 @@ class EpisodicDataset(object):
         rewards = np.concatenate(rewards, axis=0)
         dones = np.concatenate(dones, axis=0)
 
-        data_loader = create_data_loader((states, actions, next_states, rewards, dones), batch_size=batch_size,
-                                         shuffle=True, drop_last=False)
+        input_tuple = (states, actions, next_states, rewards, dones)
 
-        return data_loader
+        output_tuple = train_test_split(*input_tuple, test_size=train_val_split_ratio)
+
+        train_tuple = output_tuple[0::2]
+        val_tuple = output_tuple[1::2]
+
+        train_data_loader = create_data_loader(train_tuple, batch_size=batch_size, shuffle=True,
+                                               drop_last=False)
+        val_data_loader = create_data_loader(val_tuple, batch_size=batch_size, shuffle=True,
+                                             drop_last=False)
+
+        return train_data_loader, val_data_loader
 
     def log(self):
         returns = []
@@ -366,6 +376,8 @@ def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) ->
         done = False
         t = 0
         while not done:
+            t += 1
+
             if state.dtype == np.float:
                 state = state.astype(np.float32)
 
@@ -384,6 +396,5 @@ def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) ->
             dataset.add(state, action, next_state, reward, done)
 
             state = next_state
-            t += 1
 
     return dataset

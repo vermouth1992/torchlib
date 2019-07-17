@@ -84,9 +84,11 @@ class DeterministicModel(Model):
         if verbose:
             t = tqdm(t)
 
+        train_data_loader, val_data_loader = dataset.random_iterator(batch_size=batch_size)
+
         for i in t:
             losses = []
-            for states, actions, next_states, _, _ in dataset.random_iterator(batch_size=batch_size):
+            for states, actions, next_states, _, _ in train_data_loader:
                 # convert to tensor
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)
@@ -98,8 +100,23 @@ class DeterministicModel(Model):
                 loss.backward()
                 self.optimizer.step()
                 losses.append(loss.item())
+
+            self.eval()
+            val_losses = []
+            with torch.no_grad():
+                for states, actions, next_states, _, _ in val_data_loader:
+                    # convert to tensor
+                    states = move_tensor_to_gpu(states)
+                    actions = move_tensor_to_gpu(actions)
+                    next_states = move_tensor_to_gpu(next_states)
+                    predicted_next_states = self.predict_next_states(states, actions)
+                    loss = F.mse_loss(predicted_next_states, next_states)
+                    val_losses.append(loss.item())
+            self.train()
+
             if verbose:
-                t.set_description('Epoch {}/{} - Avg model loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
+                t.set_description('Epoch {}/{} - Avg model train loss: {:.4f} - Avg model val loss: {:.4f}'.format(
+                    i + 1, epoch, np.mean(losses), np.mean(val_losses)))
 
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
@@ -177,7 +194,6 @@ class StochasticVariationalModel(Model):
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)
                 next_states = move_tensor_to_gpu(next_states)
-
 
     def predict_next_states(self, states, actions, z=None):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'

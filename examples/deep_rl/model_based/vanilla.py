@@ -108,5 +108,6 @@ if __name__ == '__main__':
                   num_on_policy_rollouts=args['num_on_policy_rollouts'],
                   training_epochs=args['training_epochs'],
                   training_batch_size=args['training_batch_size'],
+                  policy_epochs=args['training_epochs'],
                   verbose=True,
                   checkpoint_path=None)
