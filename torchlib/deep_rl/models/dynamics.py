@@ -13,8 +13,8 @@ class ContinuousMLPDynamics(nn.Module):
         super(ContinuousMLPDynamics, self).__init__()
         self.discrete = False
         self.model = nn.Sequential(
-            *linear_bn_relu_block(state_dim + action_dim, nn_size, normalize=False),
-            *linear_bn_relu_block(nn_size, nn_size, normalize=False),
+            *linear_bn_relu_block(state_dim + action_dim, nn_size, normalize=True),
+            *linear_bn_relu_block(nn_size, nn_size, normalize=True),
             nn.Linear(nn_size, state_dim)
         )
 

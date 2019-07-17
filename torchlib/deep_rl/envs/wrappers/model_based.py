@@ -110,14 +110,14 @@ class ModelBasedRoboschoolInvertedPendulumWrapper(ModelBasedWrapper):
     def cost_fn_torch_batch(self, states, actions, next_states):
         cos_th, sin_th = next_states[:, 2], next_states[:, 3]
         theta = torch.atan2(sin_th, cos_th)
-        done = torch.abs(theta) > .2
-        return done.type(FloatTensor)
+        cost = torch.abs(theta).type(FloatTensor)
+        return cost
 
     def cost_fn_numpy_batch(self, states, actions, next_states):
         cos_th, sin_th = next_states[:, 2], next_states[:, 3]
         theta = np.arctan2(sin_th, cos_th)
-        done = np.abs(theta) > .2
-        return done.astype(np.float32)
+        cost = np.abs(theta).astype(np.float32)
+        return cost
 
 
 class ModelBasedRoboschoolInvertedPendulumSwingupWrapper(ModelBasedWrapper):
