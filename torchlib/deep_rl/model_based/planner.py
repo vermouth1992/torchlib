@@ -25,7 +25,7 @@ class Planner(BaseAgent):
 
 class BestRandomActionPlanner(Planner):
     def __init__(self, model, action_sampler: BaseSampler, cost_fn=None,
-                 horizon=15, num_random_action_selection=4096):
+                 horizon=15, num_random_action_selection=4096, gamma=0.95):
         """
 
         Args:
@@ -39,6 +39,7 @@ class BestRandomActionPlanner(Planner):
         self.action_sampler = action_sampler
         self.horizon = horizon
         self.num_random_action_selection = num_random_action_selection
+        self.gamma_inverse = 1. / gamma
         if cost_fn is None:
             self.cost_fn = model.cost_fn
         else:
@@ -55,7 +56,7 @@ class BestRandomActionPlanner(Planner):
             cost = torch.zeros(size=(self.num_random_action_selection,)).type(FloatTensor)
             for i in range(self.horizon):
                 next_states = self.model.predict_next_states(states, actions[i])
-                cost += self.cost_fn(states, actions[i], next_states)
+                cost += self.cost_fn(states, actions[i], next_states) * self.gamma_inverse
                 states = next_states
 
             best_action = actions[0, torch.argmin(cost, dim=0)]

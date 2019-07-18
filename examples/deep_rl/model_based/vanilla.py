@@ -19,6 +19,7 @@ def make_parser():
     parser.add_argument('--training_batch_size', type=int, default=128)
     parser.add_argument('--dataset_maxlen', type=int, default=10000)
     parser.add_argument('--planner', type=str, choices=['random', 'uct'], default='random')
+    parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--dagger', action='store_true')
     return parser
 
@@ -87,7 +88,8 @@ if __name__ == '__main__':
     if args['planner'] == 'random':
         planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn_batch,
                                           horizon=args['horizon'],
-                                          num_random_action_selection=args['num_actions'])
+                                          num_random_action_selection=args['num_actions'],
+                                          gamma=args['gamma'])
     elif args['planner'] == 'uct':
         planner = UCTPlanner(model, action_sampler, env.cost_fn_batch, horizon=args['horizon'],
                              num_reads=args['num_actions'])
