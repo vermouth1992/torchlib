@@ -50,6 +50,7 @@ if __name__ == '__main__':
                         init_hidden_unit=init_hidden_unit,
                         nn_baseline=args['nn_baseline'],
                         lam=args['gae_lambda'],
+                        max_grad_norm=args['max_grad_norm'],
                         value_coef=args['value_coef'],
                         initial_state_mean=args['initial_state_mean'],
                         initial_state_std=args['initial_state_std'])

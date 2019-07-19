@@ -226,6 +226,7 @@ def make_default_parser():
     parser.add_argument('--exp_name', type=str, default='a2c')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gae_lambda', type=float, default=0.98)
+    parser.add_argument('--max_grad_norm', type=float, default=0.5)
     parser.add_argument('--n_iter', '-n', type=int, default=100)
     parser.add_argument('--batch_size', '-b', type=int, default=1000)
     parser.add_argument('--ep_len', '-ep', type=float, default=-1.)
