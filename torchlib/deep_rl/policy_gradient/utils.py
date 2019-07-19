@@ -86,12 +86,13 @@ def sample_trajectory(agent, env, max_path_length):
         obs.append(ob)
         hiddens.append(agent.get_hidden_unit())
 
-        ac = agent.predict(ob)
+        ac, raw_ac = agent.predict_full_action(ob)
 
         if isinstance(ac, np.ndarray) and ac.dtype == np.float:
             ac = ac.astype(np.float32)
+            raw_ac = raw_ac.astype(np.float32)
 
-        actions.append(ac)
+        actions.append(raw_ac)
 
         ob, rew, done, _ = env.step(ac)
         rewards.append(rew)

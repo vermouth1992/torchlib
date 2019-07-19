@@ -15,12 +15,13 @@ import torch.nn as nn
 
 from torchlib.common import FloatTensor, eps, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
+from torchlib.deep_rl.utils.distributions import FixedNormalTanh
 from .utils import compute_gae, compute_sum_of_rewards
 
 
 class A2CAgent(BaseAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit=None, nn_baseline=True,
-                 lam=None, value_coef=0.5, initial_state_mean=0., initial_state_std=0.):
+                 lam=None, value_coef=0.5, max_grad_norm=0.5, initial_state_mean=0., initial_state_std=0.):
         super(A2CAgent, self).__init__()
         self.policy_net = policy_net
         if enable_cuda:
@@ -30,6 +31,7 @@ class A2CAgent(BaseAgent):
         self.baseline_loss = None if not nn_baseline else nn.MSELoss()
         self.lam = lam
         self.value_coef = value_coef
+        self.max_grad_norm = max_grad_norm
         self.recurrent = init_hidden_unit is not None
 
         self.state_value_mean = initial_state_mean
@@ -51,6 +53,24 @@ class A2CAgent(BaseAgent):
 
     def get_hidden_unit(self):
         return self.hidden_unit
+
+    def predict_full_action(self, state):
+        """ Return the raw action before Tanh for continuous action space """
+        state = np.expand_dims(state, axis=0)
+        self.hidden_unit = np.expand_dims(self.hidden_unit, axis=0)
+        with torch.no_grad():
+            state = torch.from_numpy(state).type(FloatTensor)
+            hidden = torch.from_numpy(self.hidden_unit).type(FloatTensor)
+            action_dist, hidden, _ = self.policy_net.forward(state, hidden)
+            self.hidden_unit = hidden.cpu().numpy()[0]
+            if isinstance(action_dist, FixedNormalTanh):
+                action, raw_action = action_dist.sample(torch.Size([]), return_raw_value=True)
+                action = action.cpu().numpy()
+                raw_action = raw_action.cpu().numpy()
+            else:
+                action = action_dist.sample(torch.Size([])).cpu().numpy()
+                raw_action = action
+            return action[0], raw_action[0]
 
     def predict(self, state):
         """ Run the forward path of policy_network without gradient.
@@ -129,7 +149,10 @@ class A2CAgent(BaseAgent):
             # compute log prob, assume observation is small.
             if not self.recurrent:
                 distribution, _, raw_baselines = self.policy_net.forward(observation, None)
-                log_prob = distribution.log_prob(actions)
+                if isinstance(distribution, FixedNormalTanh):
+                    log_prob = distribution.log_prob(actions, is_raw_value=True)
+                else:
+                    log_prob = distribution.log_prob(actions)
             else:
                 log_prob = []
                 raw_baselines = []
@@ -158,6 +181,8 @@ class A2CAgent(BaseAgent):
             if self.nn_baseline:
                 value_loss = self.get_baseline_loss(raw_baselines, rewards)
                 loss = loss + value_loss * self.value_coef
+
+            nn.utils.clip_grad_norm_(self.policy_net.parameters(), self.max_grad_norm)
 
             loss.backward()
             self.policy_optimizer.step()

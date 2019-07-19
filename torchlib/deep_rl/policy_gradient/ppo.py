@@ -8,15 +8,16 @@ import torch.nn as nn
 
 from torchlib.common import eps, FloatTensor, convert_numpy_to_tensor, move_tensor_to_gpu
 from torchlib.dataset.utils import create_data_loader
+from torchlib.deep_rl.utils.distributions import FixedNormalTanh
 from .a2c import A2CAgent, get_policy_net
 from .utils import compute_gae, compute_sum_of_rewards
 
 
 class PPOAgent(A2CAgent):
     def __init__(self, policy_net: nn.Module, policy_optimizer, init_hidden_unit, lam=1., clip_param=0.2,
-                 entropy_coef=0.01, value_coef=1., initial_state_mean=0., initial_state_std=0.):
+                 entropy_coef=0.01, value_coef=1., max_grad_norm=0.5, initial_state_mean=0., initial_state_std=0.):
         super(PPOAgent, self).__init__(policy_net, policy_optimizer, init_hidden_unit, True, lam,
-                                       value_coef, initial_state_mean, initial_state_std)
+                                       value_coef, max_grad_norm, initial_state_mean, initial_state_std)
         self.clip_param = clip_param
         self.entropy_coef = entropy_coef
 
@@ -58,7 +59,11 @@ class PPOAgent(A2CAgent):
                 hid = move_tensor_to_gpu(hid)
                 ac = move_tensor_to_gpu(ac)
                 old_distribution, _, _ = self.policy_net.forward(obs, hid)
-                old_log_prob.append(old_distribution.log_prob(ac))
+                if isinstance(old_distribution, FixedNormalTanh):
+                    old_log_prob.append(old_distribution.log_prob(ac, is_raw_value=True))
+                else:
+                    old_log_prob.append(old_distribution.log_prob(ac))
+
             old_log_prob = torch.cat(old_log_prob, dim=0).cpu()
 
         return actions, advantage, observation, rewards, old_log_prob, mask
@@ -84,7 +89,10 @@ class PPOAgent(A2CAgent):
                 if not self.recurrent:
                     distribution, _, raw_baselines = self.policy_net.forward(observation, None)
                     entropy_loss = distribution.entropy().mean()
-                    log_prob = distribution.log_prob(action)
+                    if isinstance(distribution, FixedNormalTanh):
+                        log_prob = distribution.log_prob(action, is_raw_value=True)
+                    else:
+                        log_prob = distribution.log_prob(action)
                 else:
                     entropy_loss = []
                     log_prob = []
@@ -101,7 +109,13 @@ class PPOAgent(A2CAgent):
                         current_dist, _, current_baseline = self.policy_net.forward(current_obs, current_hidden)
                         current_hidden = torch.tensor(np.expand_dims(self.init_hidden_unit, axis=0),
                                                       requires_grad=False).type(FloatTensor)
-                        log_prob.append(current_dist.log_prob(current_actions))
+
+                        if isinstance(current_dist, FixedNormalTanh):
+                            current_log_prob = current_dist.log_prob(current_actions, is_raw_value=True)
+                        else:
+                            current_log_prob = current_dist.log_prob(current_actions)
+
+                        log_prob.append(current_log_prob)
                         raw_baselines.append(current_baseline)
                         entropy_loss.append(current_dist.entropy())
 
@@ -113,7 +127,12 @@ class PPOAgent(A2CAgent):
                         current_dist, current_hidden, current_baseline = self.policy_net.forward(current_obs,
                                                                                                  current_hidden)
 
-                        log_prob.append(current_dist.log_prob(current_actions))
+                        if isinstance(current_dist, FixedNormalTanh):
+                            current_log_prob = current_dist.log_prob(current_actions, is_raw_value=True)
+                        else:
+                            current_log_prob = current_dist.log_prob(current_actions)
+
+                        log_prob.append(current_log_prob)
                         raw_baselines.append(current_baseline)
                         entropy_loss.append(current_dist.entropy())
                         current_hidden = current_hidden.detach()
@@ -134,6 +153,9 @@ class PPOAgent(A2CAgent):
                 value_loss = self.get_baseline_loss(raw_baselines, discount_rewards)
 
                 loss = policy_loss - entropy_loss * self.entropy_coef + self.value_coef * value_loss
+
+                nn.utils.clip_grad_norm_(self.policy_net.parameters(), self.max_grad_norm)
+
                 loss.backward()
                 self.policy_optimizer.step()
 
