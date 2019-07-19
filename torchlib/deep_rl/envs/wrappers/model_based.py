@@ -136,15 +136,15 @@ class ModelBasedRoboschoolReacher(ModelBasedWrapper):
         gamma = next_states[:, 7]
         gamma_dot = next_states[:, 8]
 
-        old_potential = -100 * np.sqrt(np.sum(old_to_target_vec ** 2, axis=-1))
-        potential = -100 * np.sqrt(np.sum(to_target_vec ** 2, axis=-1))
+        old_potential = 100 * np.sqrt(np.sum(old_to_target_vec ** 2, axis=-1))
+        potential = 100 * np.sqrt(np.sum(to_target_vec ** 2, axis=-1))
 
         electricity_cost = (
-                -0.10 * (np.abs(actions[:, 0] * theta_dot) + np.abs(actions[:, 1] * gamma_dot))
-                - 0.01 * (np.abs(actions[:, 0]) + np.abs(actions[:, 1]))
+                0.10 * (np.abs(actions[:, 0] * theta_dot) + np.abs(actions[:, 1] * gamma_dot))
+                + 0.01 * (np.abs(actions[:, 0]) + np.abs(actions[:, 1]))
         )
 
-        stuck_joint_cost = -0.1 * (np.abs(np.abs(gamma) - 1) < 0.01).astype(np.float32)
+        stuck_joint_cost = 0.1 * (np.abs(np.abs(gamma) - 1) < 0.01).astype(np.float32)
 
         return potential - old_potential + electricity_cost + stuck_joint_cost
 
@@ -155,15 +155,15 @@ class ModelBasedRoboschoolReacher(ModelBasedWrapper):
         gamma = next_states[:, 7]
         gamma_dot = next_states[:, 8]
 
-        old_potential = -100 * torch.sqrt(torch.sum(old_to_target_vec ** 2, dim=-1))
-        potential = -100 * torch.sqrt(torch.sum(to_target_vec ** 2, dim=-1))
+        old_potential = 100 * torch.sqrt(torch.sum(old_to_target_vec ** 2, dim=-1))
+        potential = 100 * torch.sqrt(torch.sum(to_target_vec ** 2, dim=-1))
 
         electricity_cost = (
-                -0.10 * (torch.abs(actions[:, 0] * theta_dot) + torch.abs(actions[:, 1] * gamma_dot))
-                - 0.01 * (torch.abs(actions[:, 0]) + torch.abs(actions[:, 1]))
+                0.10 * (torch.abs(actions[:, 0] * theta_dot) + torch.abs(actions[:, 1] * gamma_dot))
+                + 0.01 * (torch.abs(actions[:, 0]) + torch.abs(actions[:, 1]))
         )
 
-        stuck_joint_cost = -0.1 * (torch.abs(torch.abs(gamma) - 1) < 0.01).type(FloatTensor)
+        stuck_joint_cost = 0.1 * (torch.abs(torch.abs(gamma) - 1) < 0.01).type(FloatTensor)
 
         return potential - old_potential + electricity_cost + stuck_joint_cost
 
