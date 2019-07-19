@@ -128,6 +128,46 @@ class ModelBasedRoboschoolInvertedPendulumSwingupWrapper(ModelBasedWrapper):
         return -next_states[:, 2]
 
 
+class ModelBasedRoboschoolReacher(ModelBasedWrapper):
+    def cost_fn_numpy_batch(self, states, actions, next_states):
+        old_to_target_vec = states[:, 2:4]
+        to_target_vec = next_states[:, 2:4]
+        theta_dot = next_states[:, 6]
+        gamma = next_states[:, 7]
+        gamma_dot = next_states[:, 8]
+
+        old_potential = -100 * np.sqrt(np.sum(old_to_target_vec ** 2, axis=-1))
+        potential = -100 * np.sqrt(np.sum(to_target_vec ** 2, axis=-1))
+
+        electricity_cost = (
+                -0.10 * (np.abs(actions[:, 0] * theta_dot) + np.abs(actions[:, 1] * gamma_dot))
+                - 0.01 * (np.abs(actions[:, 0]) + np.abs(actions[:, 1]))
+        )
+
+        stuck_joint_cost = -0.1 * (np.abs(np.abs(gamma) - 1) < 0.01).astype(np.float32)
+
+        return potential - old_potential + electricity_cost + stuck_joint_cost
+
+    def cost_fn_torch_batch(self, states, actions, next_states):
+        old_to_target_vec = states[:, 2:4]
+        to_target_vec = next_states[:, 2:4]
+        theta_dot = next_states[:, 6]
+        gamma = next_states[:, 7]
+        gamma_dot = next_states[:, 8]
+
+        old_potential = -100 * torch.sqrt(torch.sum(old_to_target_vec ** 2, dim=-1))
+        potential = -100 * torch.sqrt(torch.sum(to_target_vec ** 2, dim=-1))
+
+        electricity_cost = (
+                -0.10 * (torch.abs(actions[:, 0] * theta_dot) + torch.abs(actions[:, 1] * gamma_dot))
+                - 0.01 * (torch.abs(actions[:, 0]) + torch.abs(actions[:, 1]))
+        )
+
+        stuck_joint_cost = -0.1 * (torch.abs(torch.abs(gamma) - 1) < 0.01).type(FloatTensor)
+
+        return potential - old_potential + electricity_cost + stuck_joint_cost
+
+
 model_based_wrapper_dict = {
     'CartPole-v0': ModelBasedCartPoleWrapper,
     'CartPole-v1': ModelBasedCartPoleWrapper,
@@ -137,5 +177,5 @@ model_based_wrapper_dict = {
     'PendulumNormalized-v0': ModelBasedPendulumWrapper,
     'RoboschoolInvertedPendulum-v1': ModelBasedRoboschoolInvertedPendulumWrapper,
     'RoboschoolInvertedPendulumSwingup-v1': ModelBasedRoboschoolInvertedPendulumSwingupWrapper,
-
+    'RoboschoolReacher-v1': ModelBasedRoboschoolReacher
 }

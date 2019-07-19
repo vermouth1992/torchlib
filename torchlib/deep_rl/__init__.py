@@ -1,3 +1,4 @@
+import gym
 import numpy as np
 from gym.envs.registration import register
 from gym.spaces import Space
@@ -17,7 +18,6 @@ register(
     max_episode_steps=500,
     reward_threshold=475.0,
 )
-
 
 register(
     id='PendulumNormalized-v0',
@@ -52,7 +52,7 @@ class RandomAgent(BaseAgent):
         return self.action_space.sample()
 
 
-def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=False, seed=1996):
+def test(env: gym.Env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=False, seed=1996):
     set_global_seeds(seed)
     env.seed(seed)
     reward_lst = []
@@ -65,14 +65,14 @@ def test(env, agent: BaseAgent, num_episode=100, frame_history_len=1, render=Fal
         observation_lst.append(previous_observation)
         for _ in range(frame_history_len - 1):
             if render:
-                env.render(close=False)
+                env.render()
             action = env.action_space.sample()
             previous_observation, reward, done, _ = env.step(action)
             observation_lst.append(previous_observation)
             episode_reward += reward
         while not done:
             if render:
-                env.render(close=False)
+                env.render()
             action = agent.predict(np.concatenate(observation_lst, axis=-1))
             previous_observation, reward, done, _ = env.step(action)
             episode_reward += reward
