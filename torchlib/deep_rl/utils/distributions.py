@@ -6,7 +6,6 @@ Rewrite Pytorch builtin distribution function to favor policy gradient
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 from torch.distributions import Normal, Distribution, Independent
 
 from torchlib.common import eps
@@ -20,6 +19,8 @@ class FixedNormal(Distribution):
 
     def __init__(self, loc, scale, validate_args=None):
         super(FixedNormal, self).__init__()
+        self.loc = loc
+        self.scale = scale
         self.normal = Independent(Normal(loc=loc, scale=scale, validate_args=validate_args), 1,
                                   validate_args=validate_args)
 
@@ -34,6 +35,14 @@ class FixedNormal(Distribution):
 
     def entropy(self):
         return self.normal.entropy()
+
+    @property
+    def mean(self):
+        return self.normal.mean
+
+    @property
+    def stddev(self):
+        return self.normal.stddev
 
 
 class FixedNormalTanh(FixedNormal):

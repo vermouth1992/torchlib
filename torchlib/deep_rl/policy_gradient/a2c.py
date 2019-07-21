@@ -13,10 +13,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from torchlib.common import FloatTensor, eps, enable_cuda, convert_numpy_to_tensor
+from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.utils.distributions import FixedNormalTanh
-from .utils import compute_gae, compute_sum_of_rewards
+from .utils import compute_reward_to_go_gae
 
 
 class A2CAgent(BaseAgent):
@@ -101,30 +101,26 @@ class A2CAgent(BaseAgent):
 
     def get_baseline_loss(self, raw_baseline, rewards):
         # update baseline
-        rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards, unbiased=False) + eps)
+        # rewards = (rewards - torch.mean(rewards)) / (torch.std(rewards, unbiased=False) + eps)
         rewards = rewards.type(FloatTensor)
         loss = self.baseline_loss(raw_baseline, rewards)
         return loss
 
     def construct_dataset(self, paths, gamma):
-        rewards = compute_sum_of_rewards(paths, gamma, self.policy_net, self.state_value_mean,
-                                         self.state_value_std)
-        self.state_value_mean = np.mean(rewards)
-        self.state_value_std = np.std(rewards)
+        rewards, advantage, self.state_value_mean, self.state_value_std = compute_reward_to_go_gae(paths, gamma,
+                                                                                                   self.policy_net,
+                                                                                                   self.lam,
+                                                                                                   self.state_value_mean,
+                                                                                                   self.state_value_std)
 
         observation = np.concatenate([path["observation"] for path in paths])
         hidden = np.concatenate([path["hidden"] for path in paths])
         mask = np.concatenate([path["mask"] for path in paths])
         actions = np.concatenate([path['actions'] for path in paths])
 
-        if self.nn_baseline:
-            advantage = compute_gae(paths, gamma, self.policy_net, self.lam,
-                                    self.state_value_mean, self.state_value_std)
-        else:
+        if not self.nn_baseline:
             advantage = rewards
 
-        # normalize advantage
-        advantage = (advantage - np.mean(advantage)) / (np.std(advantage) + eps)
         return actions, advantage, observation, rewards, hidden, mask
 
     def update_policy(self, dataset, epoch=1):

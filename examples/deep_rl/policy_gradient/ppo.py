@@ -51,6 +51,7 @@ if __name__ == '__main__':
                         clip_param=args['clip_param'],
                         entropy_coef=args['entropy_coef'],
                         value_coef=args['value_coef'],
+                        target_kl=args['target_kl'],
                         max_grad_norm=args['max_grad_norm'],
                         initial_state_mean=args['initial_state_mean'],
                         initial_state_std=args['initial_state_std'])
