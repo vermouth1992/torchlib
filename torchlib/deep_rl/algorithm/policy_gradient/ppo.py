@@ -140,8 +140,8 @@ class PPOAgent(A2CAgent):
                 negative_approx_kl_mean = torch.mean(-negative_approx_kl).item()
 
                 if negative_approx_kl_mean > 1.5 * self.target_kl:
-                    print('Early stopping this iteration. Current kl {:.4f}. Current epoch index {}'.format(
-                        negative_approx_kl_mean, epoch_index))
+                    # print('Early stopping this iteration. Current kl {:.4f}. Current epoch index {}'.format(
+                    #     negative_approx_kl_mean, epoch_index))
                     continue
 
                 ratio = torch.exp(negative_approx_kl)
@@ -157,6 +157,9 @@ class PPOAgent(A2CAgent):
 
                 loss.backward()
                 self.policy_optimizer.step()
+
+
+get_policy_net = get_policy_net
 
 
 def make_default_parser():
@@ -183,6 +186,3 @@ def make_default_parser():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--seed', type=int, default=1)
     return parser
-
-
-get_policy_net = get_policy_net

@@ -3,8 +3,8 @@ Define a bunch of new environments to fast deep RL algorithm verifying
 """
 
 from torchlib import deep_rl
-from torchlib.deep_rl.envs.cartpole_continuous import CartPoleEnvContinuous
-from torchlib.deep_rl.envs.pendulum import PendulumEnvNormalized
+from .cartpole_continuous import CartPoleEnvContinuous
+from .pendulum import PendulumEnvNormalized
 
 __all__ = ['deep_rl']
 
@@ -56,6 +56,9 @@ def is_ple_game(env_name):
     return env_name in ple_game_list
 
 
+from . import wrappers
+
+
 def make_env(env_name, args):
     """ A naive make_env to cover currently used environments
 
@@ -84,9 +87,9 @@ def make_env(env_name, args):
     elif is_atari_env(env_name):
         env = gym.make(env_name)
         if 'ram' in env_name.split('-'):
-            from torchlib.deep_rl.envs.wrappers import wrap_deepmind_ram as wrapper
+            from .wrappers import wrap_deepmind_ram as wrapper
         else:
-            from torchlib.deep_rl.envs.wrappers import wrap_deepmind as wrapper
+            from .wrappers import wrap_deepmind as wrapper
         env = wrapper(env, frame_length=args['frame_history_len'])
 
     else:

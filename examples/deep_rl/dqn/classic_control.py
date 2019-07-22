@@ -2,17 +2,13 @@
 Train agent on CartPole-v0 using DQN
 """
 
-import os
 import pprint
 
 import gym
 import torch
-import torchlib.deep_rl.value_based.dqn as dqn
-from gym import wrappers
-from torchlib import deep_rl
-from torchlib.deep_rl.models.value import QModule, DuelQModule
-from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
-from torchlib.deep_rl.value_based.dqn import QNetwork
+
+import torchlib.deep_rl as deep_rl
+import torchlib.deep_rl.algorithm.value_based.dqn as dqn
 
 
 def make_parser():
@@ -47,17 +43,16 @@ if __name__ == '__main__':
     env_name = args['env_name']
     env = gym.make(env_name)
 
-    expt_dir = '/tmp/{}'.format(env_name)
-    env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
-
     if args['duel']:
-        network = DuelQModule(args['nn_size'], state_dim=env.observation_space.shape[0], action_dim=env.action_space.n)
+        network = deep_rl.models.DuelQModule(args['nn_size'], state_dim=env.observation_space.shape[0],
+                                             action_dim=env.action_space.n)
     else:
-        network = QModule(args['nn_size'], state_dim=env.observation_space.shape[0], action_dim=env.action_space.n)
+        network = deep_rl.models.QModule(args['nn_size'], state_dim=env.observation_space.shape[0],
+                                         action_dim=env.action_space.n)
 
     optimizer = torch.optim.Adam(network.parameters(), lr=args['learning_rate'])
 
-    q_network = QNetwork(network, optimizer)
+    q_network = dqn.DQN(network, optimizer)
     checkpoint_path = 'checkpoint/{}.ckpt'.format(env_name)
 
     if args['test']:
@@ -68,7 +63,7 @@ if __name__ == '__main__':
             print("Can't find checkpoint. Abort")
 
     else:
-        exploration_criteria = PiecewiseSchedule(
+        exploration_criteria = deep_rl.utils.schedules.PiecewiseSchedule(
             [
                 (0, 1.0),
                 (args['n_iter'] // 10, 0.02),
@@ -79,8 +74,8 @@ if __name__ == '__main__':
             'size': args['replay_size'],
         }
 
-        dqn.train(env, q_network, exploration_criteria, args['n_iter'], args['replay_type'], replay_buffer_config,
-                  batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
-                  learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
-                  log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
-                  checkpoint_path=checkpoint_path)
+        q_network.train(env, exploration_criteria, args['n_iter'], args['replay_type'], replay_buffer_config,
+                        batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
+                        learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
+                        log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
+                        checkpoint_path=checkpoint_path)

@@ -37,26 +37,10 @@ if __name__ == '__main__':
     import gym
     import torch.optim
     from torchlib import deep_rl
-    from torchlib.deep_rl.models.dynamics import ContinuousMLPDynamics, DiscreteMLPDynamics
-    from torchlib.deep_rl.model_based.model import DeterministicModel
-    from torchlib.deep_rl.model_based.planner import BestRandomActionPlanner, UCTPlanner
-    from torchlib.deep_rl.model_based.policy import DiscretePolicy, ContinuousPolicy
-    from torchlib.deep_rl.models.policy import ActorModule
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
-    from torchlib.deep_rl.model_based.agent import ModelBasedPlanAgent, ModelBasedDAggerAgent
-    import torchlib.deep_rl.model_based.trainer as trainer
-    from torchlib.deep_rl.envs.wrappers import get_model_based_wrapper
 
-    __all__ = ['deep_rl']
-
-    if args['env_name'].startswith('Roboschool'):
-        import roboschool
-
-        __all__.append('roboschool')
-
-    env = gym.make(args['env_name'])
-    wrapper = get_model_based_wrapper(args['env_name'])
-    env = wrapper(env)
+    env = deep_rl.envs.make_env(args['env_name'], args)
+    env = deep_rl.envs.wrappers.get_model_based_wrapper(args['env_name'])(env)
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
 
@@ -64,52 +48,58 @@ if __name__ == '__main__':
 
     if discrete:
         ac_dim = env.action_space.n
-        dynamics_model = DiscreteMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
+        dynamics_model = deep_rl.models.DiscreteMLPDynamics(state_dim=ob_dim, action_dim=ac_dim,
+                                                            nn_size=args['nn_size'])
         action_sampler = IntSampler(low=ac_dim)
         if dagger:
-            actor = ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim, output_activation=None)
+            actor = deep_rl.models.ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
+                                               output_activation=None)
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
-            policy = DiscretePolicy(actor, actor_optimizer)
+            policy = torchlib.deep_rl.algorithm.model_based.DiscreteImitationPolicy(actor, actor_optimizer)
     else:
         ac_dim = env.action_space.shape[0]
         print('Action high: {}. Action low: {}'.format(env.action_space.high, env.action_space.low))
-        dynamics_model = ContinuousMLPDynamics(state_dim=ob_dim, action_dim=ac_dim, nn_size=args['nn_size'])
+        dynamics_model = deep_rl.models.ContinuousMLPDynamics(state_dim=ob_dim, action_dim=ac_dim,
+                                                              nn_size=args['nn_size'])
         action_sampler = UniformSampler(low=env.action_space.low, high=env.action_space.high)
 
         if dagger:
-            actor = ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim, output_activation=torch.tanh)
+            actor = deep_rl.models.ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
+                                               output_activation=torch.tanh)
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
-            policy = ContinuousPolicy(actor, actor_optimizer)
+            policy = torchlib.deep_rl.algorithm.model_based.policy.ContinuousImitationPolicy(actor, actor_optimizer)
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
-    model = DeterministicModel(dynamics_model=dynamics_model, optimizer=optimizer)
+    model = torchlib.deep_rl.algorithm.model_based.model.DeterministicModel(dynamics_model=dynamics_model, optimizer=optimizer)
 
     if args['planner'] == 'random':
-        planner = BestRandomActionPlanner(model=model, action_sampler=action_sampler, cost_fn=env.cost_fn_batch,
-                                          horizon=args['horizon'],
-                                          num_random_action_selection=args['num_actions'],
-                                          gamma=args['gamma'])
+        planner = torchlib.deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model, action_sampler=action_sampler,
+                                                                                         cost_fn=env.cost_fn_batch,
+                                                                                         horizon=args['horizon'],
+                                                                                         num_random_action_selection=args['num_actions'],
+                                                                                         gamma=args['gamma'])
     elif args['planner'] == 'uct':
-        planner = UCTPlanner(model, action_sampler, env.cost_fn_batch, horizon=args['horizon'],
-                             num_reads=args['num_actions'])
+        planner = torchlib.deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
+                                                                            horizon=args['horizon'],
+                                                                            num_reads=args['num_actions'])
     else:
         raise ValueError('Unknown planner {}'.format(args['planner']))
 
     if dagger:
-        agent = ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
-                                      policy_data_size=args['dataset_maxlen'])
+        agent = torchlib.deep_rl.algorithm.model_based.agent.ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
+                                                                                   policy_data_size=args['dataset_maxlen'])
     else:
-        agent = ModelBasedPlanAgent(model=model, planner=planner)
+        agent = torchlib.deep_rl.algorithm.model_based.agent.ModelBasedPlanAgent(model=model, planner=planner)
 
-    trainer.train(env, agent,
-                  dataset_maxlen=args['dataset_maxlen'],
-                  num_init_random_rollouts=args['num_init_random_rollouts'],
-                  max_rollout_length=args['max_rollout_length'],
-                  num_on_policy_iters=args['num_on_policy_iters'],
-                  num_on_policy_rollouts=args['num_on_policy_rollouts'],
-                  training_epochs=args['training_epochs'],
-                  training_batch_size=args['training_batch_size'],
-                  policy_epochs=args['training_epochs'],
-                  verbose=True,
-                  checkpoint_path=None)
+    torchlib.deep_rl.algorithm.model_based.trainer.train(env, agent,
+                                                         dataset_maxlen=args['dataset_maxlen'],
+                                                         num_init_random_rollouts=args['num_init_random_rollouts'],
+                                                         max_rollout_length=args['max_rollout_length'],
+                                                         num_on_policy_iters=args['num_on_policy_iters'],
+                                                         num_on_policy_rollouts=args['num_on_policy_rollouts'],
+                                                         training_epochs=args['training_epochs'],
+                                                         training_batch_size=args['training_batch_size'],
+                                                         policy_epochs=args['training_epochs'],
+                                                         verbose=True,
+                                                         checkpoint_path=None)

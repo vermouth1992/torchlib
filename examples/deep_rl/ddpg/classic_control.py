@@ -1,7 +1,6 @@
 """
 Use DDPG to solve low dimensional control
 """
-from __future__ import print_function, division
 
 import os
 import pprint
@@ -9,12 +8,11 @@ import pprint
 import gym.spaces
 import numpy as np
 import torch
-import torchlib.deep_rl.value_based.ddpg as ddpg
 from gym import wrappers
-from torchlib import deep_rl
-from torchlib.deep_rl.value_based.ddpg import ActorNetwork, CriticNetwork
-from torchlib.utils.random.random_process import OrnsteinUhlenbeckActionNoise
 
+import torchlib.deep_rl as deep_rl
+import torchlib.deep_rl.algorithm as algo
+import torchlib.utils.random
 
 
 def make_parser():
@@ -53,7 +51,6 @@ if __name__ == '__main__':
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.shape[0]
 
-    action_bound = env.action_space.high
     print('Action space high: {}'.format(env.action_space.high))
     print('Action space low: {}'.format(env.action_space.low))
     assert np.all(env.action_space.high == -env.action_space.low), 'Check the action space.'
@@ -61,21 +58,20 @@ if __name__ == '__main__':
     nn_size = args['nn_size']
     tau = args['target_update_tau']
 
-    actor = ActorModule(size=nn_size, state_dim=ob_dim, action_dim=ac_dim, action_bound=action_bound)
+    actor = deep_rl.models.ActorModule(size=nn_size, state_dim=ob_dim, action_dim=ac_dim)
     actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
-    critic = CriticModule(size=nn_size, state_dim=ob_dim, action_dim=ac_dim)
+    critic = deep_rl.models.CriticModule(size=nn_size, state_dim=ob_dim, action_dim=ac_dim)
     critic_optimizer = torch.optim.Adam(critic.parameters(), lr=args['learning_rate'])
 
-    actor = ActorNetwork(actor, optimizer=actor_optimizer, tau=tau)
-    critic = CriticNetwork(critic, optimizer=critic_optimizer, tau=tau)
-    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(ac_dim))
+    agent = algo.ddpg.DDPG(actor, actor_optimizer, critic, critic_optimizer, tau)
+    actor_noise = torchlib.utils.random.OrnsteinUhlenbeckActionNoise(mu=np.zeros(ac_dim))
 
     checkpoint_path = 'checkpoint/{}.ckpt'.format(env_name)
 
     if args['test']:
         try:
-            actor.load_checkpoint(checkpoint_path)
-            deep_rl.test(env, actor, seed=args['seed'])
+            agent.load_checkpoint(checkpoint_path)
+            deep_rl.test(env, agent, seed=args['seed'])
         except:
             print("Can't find checkpoint. Abort")
 
@@ -85,7 +81,8 @@ if __name__ == '__main__':
             'size': args['replay_size'],
         }
 
-        ddpg.train(env, actor, critic, actor_noise, args['n_iter'], args['replay_type'],
-                   replay_buffer_config, args['batch_size'], args['discount'], args['learn_start'],
-                   learning_freq=args['learning_freq'], seed=args['seed'], log_every_n_steps=args['log_every_n_steps'],
-                   actor_checkpoint_path=checkpoint_path)
+        agent.train(env, actor_noise, args['n_iter'], args['replay_type'],
+                    replay_buffer_config, args['batch_size'], args['discount'], args['learn_start'],
+                    learning_freq=args['learning_freq'], seed=args['seed'],
+                    log_every_n_steps=args['log_every_n_steps'],
+                    actor_checkpoint_path=checkpoint_path)

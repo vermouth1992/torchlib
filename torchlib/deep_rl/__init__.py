@@ -84,3 +84,9 @@ def test(env: gym.Env, agent: BaseAgent, num_episode=100, frame_history_len=1, r
     print('Reward {}±{}'.format(np.mean(reward_lst), np.std(reward_lst)))
 
     env.close()
+
+
+from . import algorithm
+from . import models
+from . import envs
+from . import utils

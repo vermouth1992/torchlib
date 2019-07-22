@@ -2,17 +2,13 @@
 Training DQN on Atari games
 """
 
-import os
 import pprint
 
 import gym
 import torch
-import torchlib.deep_rl.value_based.dqn as dqn
-from gym import wrappers
-from torchlib.deep_rl.envs.wrappers import wrap_deepmind
-from torchlib.deep_rl.models.value import AtariDuelQModule, AtariQModule
-from torchlib.deep_rl.utils.schedules import PiecewiseSchedule
-from torchlib.deep_rl.value_based.dqn import QNetwork
+
+import torchlib.deep_rl as deep_rl
+import torchlib.deep_rl.algorithm.value_based.dqn as dqn
 
 
 def make_parser():
@@ -46,47 +42,31 @@ if __name__ == '__main__':
     env_name = args['env_name']
     env = gym.make(env_name)
 
-    expt_dir = '/tmp/{}'.format(env_name)
-    env = wrappers.Monitor(env, os.path.join(expt_dir, "gym"), force=True, video_callable=False)
-
-    env = wrap_deepmind(env)
+    env = deep_rl.envs.wrappers.wrap_deepmind(env)
 
     frame_history_len = 4
 
     if args['duel']:
-        network = AtariDuelQModule(frame_history_len, action_dim=env.action_space.n)
+        network = deep_rl.models.AtariDuelQModule(frame_history_len, action_dim=env.action_space.n)
     else:
-        network = AtariQModule(frame_history_len, action_dim=env.action_space.n)
+        network = deep_rl.models.AtariQModule(frame_history_len, action_dim=env.action_space.n)
 
     optimizer = torch.optim.Adam(network.parameters(), lr=args['learning_rate'])
 
     num_iterations = float(args['n_iter']) / 4.0
-    exploration_schedule = PiecewiseSchedule(
+    exploration_schedule = deep_rl.utils.schedules.PiecewiseSchedule(
         [
             (0, 1.0),
             (1e5, 0.02),
         ], outside_value=0.02
     )
 
-    # lr_multiplier = 1.0
-    #
-    # lr_schedule = PiecewiseSchedule([
-    #     (0, 1e-4 * lr_multiplier),
-    #     (num_iterations / 10, 1e-4 * lr_multiplier),
-    #     (num_iterations / 2, 5e-5 * lr_multiplier),
-    # ],
-    #     outside_value=5e-5 * lr_multiplier)
-    #
-    # lr_schedule_lambda = lambda t: lr_schedule.value(t)
-    #
-    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule_lambda)
-
-    q_network = QNetwork(network, optimizer, optimizer_scheduler=None, tau=1e-3)
+    q_network = dqn.DQN(network, optimizer, optimizer_scheduler=None, tau=1e-3)
     checkpoint_path = 'checkpoint/{}.ckpt'.format(env_name)
 
     if args['test']:
         q_network.load_checkpoint(checkpoint_path)
-        dqn.test(env, q_network, frame_history_len=frame_history_len, render=args['render'], seed=args['seed'])
+        deep_rl.test(env, q_network, frame_history_len=frame_history_len, render=args['render'], seed=args['seed'])
 
     else:
 
@@ -95,8 +75,8 @@ if __name__ == '__main__':
             'frame_history_len': frame_history_len
         }
 
-        dqn.train(env, q_network, exploration_schedule, args['n_iter'], 'frame', replay_buffer_config,
-                  batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
-                  learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
-                  log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
-                  checkpoint_path=checkpoint_path)
+        q_network.train(env, exploration_schedule, args['n_iter'], 'frame', replay_buffer_config,
+                        batch_size=args['batch_size'], gamma=args['discount'], learn_starts=args['learn_start'],
+                        learning_freq=args['learning_freq'], double_q=args['double_q'], seed=args['seed'],
+                        log_every_n_steps=args['log_every_n_steps'], target_update_freq=args['target_update_freq'],
+                        checkpoint_path=checkpoint_path)

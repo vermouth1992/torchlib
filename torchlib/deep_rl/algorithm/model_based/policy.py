@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
-from torchlib.deep_rl.model_based.utils import StateActionPairDataset
+from torchlib.deep_rl.algorithm.model_based.utils import StateActionPairDataset
 
 
 class ImitationPolicy(BaseAgent):
@@ -84,9 +84,9 @@ class ImitationPolicy(BaseAgent):
                 t.set_description('Epoch {}/{} - Avg policy loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
 
 
-class DiscretePolicy(ImitationPolicy):
+class DiscreteImitationPolicy(ImitationPolicy):
     def __init__(self, model: nn.Module, optimizer):
-        super(DiscretePolicy, self).__init__(model=model, optimizer=optimizer)
+        super(DiscreteImitationPolicy, self).__init__(model=model, optimizer=optimizer)
         self.loss_fn = nn.CrossEntropyLoss()
 
     def predict(self, state):
@@ -99,14 +99,14 @@ class DiscretePolicy(ImitationPolicy):
         return action.cpu().numpy()[0]
 
 
-class ContinuousPolicy(ImitationPolicy):
+class ContinuousImitationPolicy(ImitationPolicy):
     """
     For continuous policy, we assume the action space is between -1 and 1.
     So we use tanh as final activation layer.
     """
 
     def __init__(self, model: nn.Module, optimizer):
-        super(ContinuousPolicy, self).__init__(model=model, optimizer=optimizer)
+        super(ContinuousImitationPolicy, self).__init__(model=model, optimizer=optimizer)
         self.loss_fn = nn.MSELoss()
 
     def predict(self, state):

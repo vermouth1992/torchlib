@@ -156,17 +156,21 @@ class StochasticVariationalModel(Model):
     """
     Stochastic variational inference model. Using s_{t+1} to reconstruct s_{t+1} with a_{t} and
     s_{t} as conditional input. To use the model, output s_{t+1} with s_{t} and a_{t} and sampled
-    latent variable z_{t}
+    latent variable z_{t}.
+    We optimize three losses here:
+    1) Prediction loss
+    2) KL-divergence loss
     """
 
     def __init__(self, dynamics_model: nn.Module, inference_network: nn.Module,
-                 optimizer, code_size):
+                 optimizer, code_size, kl_loss_weight=1e-3,):
         """
 
         Args:
             dynamics_model: conditional generator model
-            inference_network: conditional encoder model
+            inference_network: conditional encoder model. Output a distribution
             optimizer: optimizer
+            code_size:
         """
         super(StochasticVariationalModel, self).__init__(dynamics_model=dynamics_model,
                                                          optimizer=optimizer)
@@ -187,13 +191,18 @@ class StochasticVariationalModel(Model):
         if verbose:
             t = tqdm(t)
 
+        train_data_loader, val_data_loader = dataset.random_iterator(batch_size=batch_size)
+
         for i in t:
             losses = []
-            for states, actions, next_states, _, _ in dataset.random_iterator(batch_size=batch_size):
+            for states, actions, next_states, _, _ in train_data_loader:
                 # convert to tensor
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)
                 next_states = move_tensor_to_gpu(next_states)
+
+                latent_distribution = self.inference_network.forward(next_states)
+
 
     def predict_next_states(self, states, actions, z=None):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'

@@ -146,61 +146,60 @@ class SoftActorCritic(BaseAgent):
         state_dict = torch.load(checkpoint_path)
         self.policy_net.load_state_dict(state_dict)
 
+    def train(self, env, n_epochs, max_episode_length, prefill_steps, epoch_length,
+              replay_pool_size, batch_size, seed, checkpoint_path=None):
+        set_global_seeds(seed)
+        env.seed(seed)
 
-def train(env, agent: SoftActorCritic, n_epochs, max_episode_length, prefill_steps, epoch_length,
-          replay_pool_size, batch_size, seed, checkpoint_path=None):
-    set_global_seeds(seed)
-    env.seed(seed)
+        sampler = SimpleSampler(max_episode_length=max_episode_length, prefill_steps=prefill_steps)
 
-    sampler = SimpleSampler(max_episode_length=max_episode_length, prefill_steps=prefill_steps)
+        replay_pool = SimpleReplayPool(
+            observation_shape=env.observation_space.shape,
+            action_shape=env.action_space.shape,
+            observation_dtype=str(env.observation_space.dtype),
+            action_dtype=str(env.action_space.dtype),
+            max_size=replay_pool_size)
 
-    replay_pool = SimpleReplayPool(
-        observation_shape=env.observation_space.shape,
-        action_shape=env.action_space.shape,
-        observation_dtype=str(env.observation_space.dtype),
-        action_dtype=str(env.action_space.dtype),
-        max_size=replay_pool_size)
+        sampler.initialize(env, self, replay_pool)
 
-    sampler.initialize(env, agent, replay_pool)
+        best_mean_episode_reward = -np.inf
 
-    best_mean_episode_reward = -np.inf
+        for epoch in range(n_epochs):
+            for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, n_epochs)):
+                sampler.sample()
 
-    for epoch in range(n_epochs):
-        for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, n_epochs)):
-            sampler.sample()
+                batch = sampler.random_batch(batch_size)
 
-            batch = sampler.random_batch(batch_size)
+                obs = batch['observations']
+                actions = batch['actions']
+                next_obs = batch['next_observations']
+                reward = batch['rewards']
+                done = batch['terminals']
 
-            obs = batch['observations']
-            actions = batch['actions']
-            next_obs = batch['next_observations']
-            reward = batch['rewards']
-            done = batch['terminals']
+                self.update(obs=obs, actions=actions, next_obs=next_obs, done=done, reward=reward)
+                self.update_target()
 
-            agent.update(obs=obs, actions=actions, next_obs=next_obs, done=done, reward=reward)
-            agent.update_target()
+            # logging
+            episode_rewards = sampler.get_episode_rewards()
+            last_period_episode_reward = episode_rewards[-100:]
+            mean_episode_reward = np.mean(last_period_episode_reward)
 
-        # logging
-        episode_rewards = sampler.get_episode_rewards()
-        last_period_episode_reward = episode_rewards[-100:]
-        mean_episode_reward = np.mean(last_period_episode_reward)
+            if mean_episode_reward > best_mean_episode_reward:
+                if checkpoint_path:
+                    self.save_checkpoint(checkpoint_path)
 
-        if mean_episode_reward > best_mean_episode_reward:
-            if checkpoint_path:
-                agent.save_checkpoint(checkpoint_path)
-
-        std_episode_reward = np.std(last_period_episode_reward)
-        best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-        print("Total timesteps {}".format(sampler.get_total_steps()))
-        print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(np.mean(episode_rewards[-10:]),
-                                                                    np.std(episode_rewards[-10:])))
-        print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-        print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
-                                                     np.max(last_period_episode_reward)))
-        print("Best mean reward {:.2f}".format(best_mean_episode_reward))
-        print("Episodes {}".format(len(episode_rewards)))
-        print("Alpha {:.4f}".format(agent.get_alpha()))
-        print('------------')
+            std_episode_reward = np.std(last_period_episode_reward)
+            best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
+            print("Total timesteps {}".format(sampler.get_total_steps()))
+            print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(np.mean(episode_rewards[-10:]),
+                                                                        np.std(episode_rewards[-10:])))
+            print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+            print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
+                                                         np.max(last_period_episode_reward)))
+            print("Best mean reward {:.2f}".format(best_mean_episode_reward))
+            print("Episodes {}".format(len(episode_rewards)))
+            print("Alpha {:.4f}".format(self.get_alpha()))
+            print('------------')
 
 
 def make_default_parser():
