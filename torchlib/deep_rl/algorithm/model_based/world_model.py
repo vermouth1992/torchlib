@@ -13,7 +13,7 @@ from torchlib.utils import normalize, unnormalize
 from .utils import EpisodicDataset as Dataset
 
 
-class Model(object):
+class WorldModel(object):
     def __init__(self, dynamics_model: nn.Module, optimizer):
         self.dynamics_model = dynamics_model
         self.optimizer = optimizer
@@ -65,13 +65,13 @@ class Model(object):
         raise NotImplementedError
 
 
-class DeterministicModel(Model):
+class DeterministicWorldModel(WorldModel):
     """
     deterministic model following equation s_{t+1} = s_{t} + f(s_{t}, a_{t})
     """
 
     def __init__(self, dynamics_model: nn.Module, optimizer):
-        super(DeterministicModel, self).__init__(dynamics_model=dynamics_model, optimizer=optimizer)
+        super(DeterministicWorldModel, self).__init__(dynamics_model=dynamics_model, optimizer=optimizer)
         self.state_mean = None
         self.state_std = None
         self.action_mean = None
@@ -152,7 +152,7 @@ class DeterministicModel(Model):
         self.delta_state_std = states['delta_state_std']
 
 
-class StochasticVariationalModel(Model):
+class StochasticVariationalWorldModel(WorldModel):
     """
     Stochastic variational inference model. Using s_{t+1} to reconstruct s_{t+1} with a_{t} and
     s_{t} as conditional input. To use the model, output s_{t+1} with s_{t} and a_{t} and sampled
@@ -163,7 +163,7 @@ class StochasticVariationalModel(Model):
     """
 
     def __init__(self, dynamics_model: nn.Module, inference_network: nn.Module,
-                 optimizer, code_size, kl_loss_weight=1e-3,):
+                 optimizer, code_size, kl_loss_weight=1e-3, ):
         """
 
         Args:
@@ -172,8 +172,8 @@ class StochasticVariationalModel(Model):
             optimizer: optimizer
             code_size:
         """
-        super(StochasticVariationalModel, self).__init__(dynamics_model=dynamics_model,
-                                                         optimizer=optimizer)
+        super(StochasticVariationalWorldModel, self).__init__(dynamics_model=dynamics_model,
+                                                              optimizer=optimizer)
         self.inference_network = inference_network
         self.code_size = code_size
 
@@ -202,7 +202,6 @@ class StochasticVariationalModel(Model):
                 next_states = move_tensor_to_gpu(next_states)
 
                 latent_distribution = self.inference_network.forward(next_states)
-
 
     def predict_next_states(self, states, actions, z=None):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'

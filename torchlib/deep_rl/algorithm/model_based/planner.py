@@ -8,7 +8,7 @@ import torch
 from torchlib.common import convert_numpy_to_tensor, FloatTensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.sampler import BaseSampler, IntSampler
-from .model import Model
+from .world_model import WorldModel
 
 
 class Planner(BaseAgent):
@@ -16,7 +16,7 @@ class Planner(BaseAgent):
     Planner predict the next best action given current state using model. Planner typically doesn't have memory.
     """
 
-    def __init__(self, model: Model):
+    def __init__(self, model: WorldModel):
         self.model = model
 
     def predict(self, state):
@@ -65,7 +65,7 @@ class BestRandomActionPlanner(Planner):
 
 
 class GameState(object):
-    def __init__(self, state, model: Model, cost_fn, action_sampler: IntSampler, horizon):
+    def __init__(self, state, model: WorldModel, cost_fn, action_sampler: IntSampler, horizon):
         self.state = state
         self.model = model
         self.cost_fn = cost_fn

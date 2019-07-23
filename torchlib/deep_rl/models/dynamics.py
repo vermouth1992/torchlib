@@ -33,8 +33,8 @@ class DiscreteMLPDynamics(nn.Module):
             nn.Dropout(0.1)
         )
         self.model = nn.Sequential(
-            *linear_bn_relu_block(state_dim + embedding_dim, nn_size, normalize=False),
-            *linear_bn_relu_block(nn_size, nn_size, normalize=False),
+            *linear_bn_relu_block(state_dim + embedding_dim, nn_size, normalize=True),
+            *linear_bn_relu_block(nn_size, nn_size, normalize=True),
             nn.Linear(nn_size, state_dim)
         )
 

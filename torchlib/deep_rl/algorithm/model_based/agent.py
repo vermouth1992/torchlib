@@ -10,14 +10,14 @@ The steps are:
 import torch
 from gym import Env
 
-import torchlib.deep_rl as deep_rl
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
 from .environment import VirtualEnv
-from .model import Model
 from .planner import Planner
 from .policy import ImitationPolicy
 from .utils import EpisodicDataset as Dataset, StateActionPairDataset, gather_rollouts
+from .world_model import WorldModel
+from ..policy_gradient import ppo
 
 
 class ModelBasedAgent(BaseAgent):
@@ -25,7 +25,7 @@ class ModelBasedAgent(BaseAgent):
     In vanilla agent, it trains a world model and using the world model to plan.
     """
 
-    def __init__(self, model: Model):
+    def __init__(self, model: WorldModel):
         self.model = model
 
     def save_checkpoint(self, checkpoint_path):
@@ -55,8 +55,8 @@ class ModelBasedAgent(BaseAgent):
               max_rollout_length=500,
               num_on_policy_iters=10,
               num_on_policy_rollouts=10,
-              training_epochs=60,
-              policy_epochs=60,
+              model_training_epochs=60,
+              policy_training_epochs=60,
               training_batch_size=512,
               verbose=True,
               checkpoint_path=None):
@@ -75,9 +75,9 @@ class ModelBasedAgent(BaseAgent):
                     num_iter + 1, num_on_policy_iters, len(dataset), dataset.num_trajectories))
 
             self.set_statistics(dataset)
-            self.fit_dynamic_model(dataset=dataset, epoch=training_epochs, batch_size=training_batch_size,
+            self.fit_dynamic_model(dataset=dataset, epoch=model_training_epochs, batch_size=training_batch_size,
                                    verbose=verbose)
-            self.fit_policy(dataset=dataset, epoch=policy_epochs, batch_size=training_batch_size,
+            self.fit_policy(dataset=dataset, epoch=policy_training_epochs, batch_size=training_batch_size,
                             verbose=verbose)
             on_policy_dataset = gather_rollouts(env, self, num_on_policy_rollouts, max_rollout_length)
 
@@ -97,7 +97,7 @@ class ModelBasedAgent(BaseAgent):
 
 
 class ModelBasedPlanAgent(ModelBasedAgent):
-    def __init__(self, model: Model, planner: Planner):
+    def __init__(self, model: WorldModel, planner: Planner):
         super(ModelBasedPlanAgent, self).__init__(model=model)
         self.planner = planner
 
@@ -174,14 +174,16 @@ class ModelBasedPPOAgent(ModelBasedAgent):
     Train model using real world interactions and update policy using PPO in simulated environments.
     """
 
-    def __init__(self, model, ppo_agent: deep_rl.algorithm.ppo.PPOAgent, real_env, **kwargs):
+    def __init__(self, model, ppo_agent: ppo.PPOAgent, real_env, **kwargs):
         super(ModelBasedPPOAgent, self).__init__(model=model)
         self.policy = ppo_agent
-        self.world_model = VirtualEnv(model, real_env)
+        self.virtual_env = VirtualEnv(model, real_env)
 
         self.gamma = kwargs.get('gamma', 0.99)
         self.min_timesteps_per_batch = kwargs.get('min_timesteps_per_batch', 1000)
-        self.max_path_length = kwargs.get('max_path_length', 1000)
+        self.max_path_length = kwargs.get('max_path_length', None)
+        if self.max_path_length is None or self.max_path_length <= 0:
+            self.max_path_length = real_env.spec.max_episode_steps
         self.seed = kwargs.get('seed', 1996)
 
     def save_checkpoint(self, checkpoint_path):
@@ -201,8 +203,9 @@ class ModelBasedPPOAgent(ModelBasedAgent):
         return self.policy.predict(state)
 
     def fit_policy(self, dataset: Dataset, epoch=5, batch_size=128, verbose=True):
-        self.world_model.set_initial_states_pool(dataset.get_initial_states())
-        self.policy.train(exp=None, env=self.world_model, n_iter=epoch,
+        self.virtual_env.set_initial_states_pool(dataset.get_initial_states())
+        self.model.eval()
+        self.policy.train(exp=None, env=self.virtual_env, n_iter=epoch,
                           gamma=self.gamma, min_timesteps_per_batch=self.min_timesteps_per_batch,
                           max_path_length=self.max_path_length, logdir=None,
                           seed=self.seed, checkpoint_path=None)

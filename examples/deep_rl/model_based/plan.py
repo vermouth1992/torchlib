@@ -55,7 +55,7 @@ if __name__ == '__main__':
             actor = deep_rl.models.ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                output_activation=None)
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
-            policy = torchlib.deep_rl.algorithm.model_based.DiscreteImitationPolicy(actor, actor_optimizer)
+            policy = deep_rl.algorithm.model_based.DiscreteImitationPolicy(actor, actor_optimizer)
     else:
         ac_dim = env.action_space.shape[0]
         print('Action high: {}. Action low: {}'.format(env.action_space.high, env.action_space.low))
@@ -67,39 +67,41 @@ if __name__ == '__main__':
             actor = deep_rl.models.ActorModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                output_activation=torch.tanh)
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
-            policy = torchlib.deep_rl.algorithm.model_based.policy.ContinuousImitationPolicy(actor, actor_optimizer)
+            policy = deep_rl.algorithm.model_based.policy.ContinuousImitationPolicy(actor, actor_optimizer)
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
-    model = torchlib.deep_rl.algorithm.model_based.model.DeterministicModel(dynamics_model=dynamics_model, optimizer=optimizer)
+    model = deep_rl.algorithm.model_based.DeterministicWorldModel(dynamics_model=dynamics_model, optimizer=optimizer)
 
     if args['planner'] == 'random':
-        planner = torchlib.deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model, action_sampler=action_sampler,
-                                                                                         cost_fn=env.cost_fn_batch,
-                                                                                         horizon=args['horizon'],
-                                                                                         num_random_action_selection=args['num_actions'],
-                                                                                         gamma=args['gamma'])
+        planner = deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model,
+                                                                                action_sampler=action_sampler,
+                                                                                cost_fn=env.cost_fn_batch,
+                                                                                horizon=args['horizon'],
+                                                                                num_random_action_selection=args[
+                                                                                    'num_actions'],
+                                                                                gamma=args['gamma'])
     elif args['planner'] == 'uct':
-        planner = torchlib.deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
-                                                                            horizon=args['horizon'],
-                                                                            num_reads=args['num_actions'])
+        planner = deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
+                                                                   horizon=args['horizon'],
+                                                                   num_reads=args['num_actions'])
     else:
         raise ValueError('Unknown planner {}'.format(args['planner']))
 
     if dagger:
-        agent = torchlib.deep_rl.algorithm.model_based.agent.ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
-                                                                                   policy_data_size=args['dataset_maxlen'])
+        agent = deep_rl.algorithm.model_based.agent.ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
+                                                                          policy_data_size=args['dataset_maxlen'])
     else:
-        agent = torchlib.deep_rl.algorithm.model_based.agent.ModelBasedPlanAgent(model=model, planner=planner)
+        agent = deep_rl.algorithm.model_based.agent.ModelBasedPlanAgent(model=model, planner=planner)
 
-    torchlib.deep_rl.algorithm.model_based.trainer.train(env, agent,
-                                                         dataset_maxlen=args['dataset_maxlen'],
-                                                         num_init_random_rollouts=args['num_init_random_rollouts'],
-                                                         max_rollout_length=args['max_rollout_length'],
-                                                         num_on_policy_iters=args['num_on_policy_iters'],
-                                                         num_on_policy_rollouts=args['num_on_policy_rollouts'],
-                                                         training_epochs=args['training_epochs'],
-                                                         training_batch_size=args['training_batch_size'],
-                                                         policy_epochs=args['training_epochs'],
-                                                         verbose=True,
-                                                         checkpoint_path=None)
+    agent.train(env=env,
+                dataset_maxlen=args['dataset_maxlen'],
+                num_init_random_rollouts=args['num_init_random_rollouts'],
+                max_rollout_length=args['max_rollout_length'],
+                num_on_policy_iters=args['num_on_policy_iters'],
+                num_on_policy_rollouts=args['num_on_policy_rollouts'],
+                model_training_epochs=args['training_epochs'],
+                training_batch_size=args['training_batch_size'],
+                policy_training_epochs=args['training_epochs'],
+                verbose=True,
+                checkpoint_path=None)

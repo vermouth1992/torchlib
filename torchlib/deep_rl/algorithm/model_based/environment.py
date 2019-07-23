@@ -2,16 +2,17 @@
 Virtual Environment for training policy using model-free approach
 """
 
+import random
+
 import gym
-import numpy as np
 
 from torchlib.deep_rl.envs.model_based import ModelBasedEnv
 from torchlib.utils.random import set_global_seeds
-from .model import Model
+from .world_model import WorldModel
 
 
 class VirtualEnv(gym.Env):
-    def __init__(self, model: Model, real_env: ModelBasedEnv):
+    def __init__(self, model: WorldModel, real_env: ModelBasedEnv):
         """ Virtual Environment. We only consider environment with pre-defined cost function.
         We will extend to learn reward function in the end.
 
@@ -39,15 +40,13 @@ class VirtualEnv(gym.Env):
 
     def reset(self):
         self.current_steps = 0
-        self.current_state = np.random.choice(self.initial_states_pool)
+        self.current_state = random.choice(self.initial_states_pool)
         return self.current_state
 
     def step(self, action):
         self.current_steps += 1
         next_state = self.model.predict_next_state(self.current_state, action)
-        reward = -self.cost_fn(np.expand_dims(self.current_state, axis=0),
-                               np.expand_dims(action, axis=0),
-                               np.expand_dims(next_state, axis=0))[0]
+        reward = -self.cost_fn(self.current_state, action, next_state)
         self.current_state = next_state
 
         if self.current_steps >= self.max_episode_steps:
