@@ -20,12 +20,12 @@ class Encoder(nn.Module):
 
         self.model = nn.Sequential(
             *conv2d_bn_lrelu_block(in_channels=3, out_channels=32, kernel_size=4, stride=2, padding=1),
-            *conv2d_bn_lrelu_block(32, 32, 4, 2, 1),
-            *conv2d_bn_lrelu_block(32, 32, 4, 2, 1),
+            *conv2d_bn_lrelu_block(32, 64, 4, 2, 1),
+            *conv2d_bn_lrelu_block(64, 128, 4, 2, 1),
         )
 
-        self.mu = nn.Linear(512, code_size)
-        self.logvar = nn.Linear(512, code_size)
+        self.mu = nn.Linear(16 * 128, code_size)
+        self.logvar = nn.Linear(16 * 128, code_size)
 
     def forward(self, img):
         x = self.model(img)
@@ -38,18 +38,18 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, code_size):
         super(Decoder, self).__init__()
-        self.linear = nn.Linear(code_size, 512)
+        self.linear = nn.Linear(code_size, 16 * 128)
 
         self.model = nn.Sequential(
-            *conv2d_trans_bn_lrelu_block(in_channels=32, out_channels=32, kernel_size=4, stride=2, padding=1),
-            *conv2d_trans_bn_lrelu_block(in_channels=32, out_channels=32, kernel_size=4, stride=2, padding=1),
+            *conv2d_trans_bn_lrelu_block(in_channels=128, out_channels=64, kernel_size=4, stride=2, padding=1),
+            *conv2d_trans_bn_lrelu_block(in_channels=64, out_channels=32, kernel_size=4, stride=2, padding=1),
             *conv2d_trans_bn_lrelu_block(in_channels=32, out_channels=3, kernel_size=4, stride=2, padding=1),
             nn.Sigmoid()
         )
 
     def forward(self, z):
         img_flat = self.linear.forward(z)
-        img = img_flat.view(img_flat.shape[0], 32, 4, 4)
+        img = img_flat.view(img_flat.shape[0], 128, 4, 4)
         img = self.model(img)
         return img
 
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--resume', choices=['model', 'checkpoint'])
     parser.add_argument('--epoch', required='--train' in sys.argv)
+    parser.add_argument('--code_size', type=int, default=10)
     args = vars(parser.parse_args())
     pprint.pprint(args)
 
@@ -69,7 +70,7 @@ if __name__ == '__main__':
 
     # parameters
     train = args['train']
-    code_size = 10
+    code_size = args['code_size']
     recon_loss_f = nn.BCELoss(reduction='sum')
     checkpoint_path = './checkpoint/vae_cifar10.ckpt'
     learning_rate = 1e-3
