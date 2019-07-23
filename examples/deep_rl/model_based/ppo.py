@@ -10,7 +10,7 @@ def make_parser():
     parser.add_argument('--nn_size', '-s', type=int, default=64)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--num_init_random_rollouts', type=int, default=10)
-    parser.add_argument('--max_rollout_length', type=int, default=500)
+    parser.add_argument('--max_rollout_length', type=int, default=-1)
     parser.add_argument('--num_on_policy_iters', type=int, default=10)
     parser.add_argument('--num_on_policy_rollouts', type=int, default=10)
     parser.add_argument('--model_training_epochs', type=int, default=60)

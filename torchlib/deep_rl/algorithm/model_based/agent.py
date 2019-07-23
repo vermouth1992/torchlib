@@ -65,6 +65,10 @@ class ModelBasedAgent(BaseAgent):
         dataset = Dataset(maxlen=dataset_maxlen)
 
         print('Gathering initial dataset...')
+
+        if max_rollout_length <= 0:
+            max_rollout_length = env.spec.max_episode_steps
+
         initial_dataset = gather_rollouts(env, random_policy, num_init_random_rollouts, max_rollout_length)
         dataset.append(initial_dataset)
 

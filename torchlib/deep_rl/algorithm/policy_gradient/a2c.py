@@ -257,6 +257,8 @@ class A2CAgent(BaseAgent):
                 timesteps_this_batch,
                 total_timesteps))
 
+            print('Reward-to-go mean: {:.4f}, std: {:.4f}'.format(self.state_value_mean, self.state_value_std))
+
             # logger
             returns = [np.sum(path["reward"]) for path in paths]
             ep_lengths = [pathlength(path) for path in paths]
