@@ -181,10 +181,12 @@ class StochasticVariationalWorldModel(WorldModel):
             self.inference_network.cuda()
 
     def train(self):
-        pass
+        super(StochasticVariationalWorldModel, self).train()
+        self.inference_network.train()
 
     def eval(self):
-        pass
+        super(StochasticVariationalWorldModel, self).eval()
+        self.inference_network.eval()
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         t = range(epoch)
@@ -202,6 +204,8 @@ class StochasticVariationalWorldModel(WorldModel):
                 next_states = move_tensor_to_gpu(next_states)
 
                 latent_distribution = self.inference_network.forward(next_states)
+
+                z = latent_distribution.sample()
 
     def predict_next_states(self, states, actions, z=None):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
