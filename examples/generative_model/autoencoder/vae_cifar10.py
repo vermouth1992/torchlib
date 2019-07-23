@@ -1,6 +1,5 @@
 import argparse
 import pprint
-import sys
 from itertools import chain
 
 import torch
@@ -59,7 +58,7 @@ if __name__ == '__main__':
     parser.add_argument('--train', action='store_true')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--resume', choices=['model', 'checkpoint'])
-    parser.add_argument('--epoch', required='--train' in sys.argv)
+    parser.add_argument('--epoch', type=int, default=100)
     parser.add_argument('--code_size', type=int, default=10)
     args = vars(parser.parse_args())
     pprint.pprint(args)
@@ -103,6 +102,3 @@ if __name__ == '__main__':
         trainer = Trainer(recon_loss_f)
         trainer.train(num_epoch, train_data_loader, model, checkpoint_path, epoch_per_save=10,
                       callbacks=[sampler, reconstruct, visualize_callback], summary_writer=summary_writer)
-
-        trainer.train(num_epoch, train_data_loader, model, checkpoint_path, epoch_per_save=10,
-                      callbacks=[sampler], summary_writer=summary_writer)
