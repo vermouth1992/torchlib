@@ -36,8 +36,6 @@ def compute_reward_to_go_gae(paths, gamma, policy_net, lam, value_mean, value_st
 
         # we need to clip last_state_value by (max_abs_value / (1 - gamma))
         # Otherwise, large state value would cause positive feedback loop and cause the reward to explode.
-        max_value = np.max(path['reward'])
-        min_value = np.min(path['reward'])
         max_abs_value = np.max(np.abs(path['reward']))
         last_state_value = np.clip(last_state_value, a_min=-max_abs_value / (1 - gamma),
                                    a_max=max_abs_value / (1 - gamma))

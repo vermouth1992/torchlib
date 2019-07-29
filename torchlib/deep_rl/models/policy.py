@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from torchlib.common import FloatTensor
-from torchlib.deep_rl.utils.distributions import FixedNormalTanh
+from torchlib.utils.distributions import IndependentNormalTanh
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
@@ -84,7 +84,7 @@ class ContinuousActionHead(nn.Module):
         mu = self.mu_header.forward(feature)
         logstd = self.log_std_header.forward(feature)
         logstd = torch.clamp(logstd, min=self.log_std_range[0], max=self.log_std_range[1])
-        return FixedNormalTanh(mu, torch.exp(logstd))
+        return IndependentNormalTanh(mu, torch.exp(logstd))
 
 
 class DiscreteActionHead(nn.Module):

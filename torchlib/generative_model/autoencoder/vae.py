@@ -1,20 +1,33 @@
 """
-Vanilla VAE model
+Vanilla VAE model.
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
-from tensorboardX import SummaryWriter
-from torchlib.common import FloatTensor
-from torchlib.common import enable_cuda
+import torch.optim
+from torch.distributions import Distribution
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+
+from torchlib.common import enable_cuda, move_tensor_to_gpu
+from torchlib.utils.math import log_to_log2
 
 
 class VAE(object):
-    def __init__(self, encoder: nn.Module, decoder: nn.Module, code_size: int, optimizer: torch.optim.Optimizer):
+    def __init__(self, encoder: nn.Module, decoder: nn.Module, prior: Distribution,
+                 optimizer: torch.optim.Optimizer):
+        """
+
+        Args:
+            encoder: The encoder must output a Pytorch distribution.
+            decoder: Pytorch module takes in latent code and output a sample distribution.
+            prior: p(z)
+            optimizer: optimizer of the network
+        """
         self.encoder = encoder
         self.decoder = decoder
-        self.code_size = code_size
+        self.prior = prior
         self.optimizer = optimizer
         if enable_cuda:
             self.encoder.cuda()
@@ -29,30 +42,33 @@ class VAE(object):
         self.decoder.eval()
 
     def sample_latent_code(self, batch_size):
-        z = torch.randn(batch_size, self.code_size).type(FloatTensor)
-        return z
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return eps.mul(std).add_(mu)
+        return self.prior.sample(torch.Size((batch_size,)))
 
     def encode(self, x):
-        mu, logvar = self.encoder.forward(x)
-        return mu, logvar
+        return self.encoder.forward(x)
 
     def encode_reparm(self, x):
-        mu, logvar = self.encode(x)
-        return self.reparameterize(mu, logvar)
+        return self.encode(x).rsample()
 
     def decode(self, z):
+        return self.decode_distribution(z).mean
+
+    def decode_distribution(self, z):
         return self.decoder.forward(z)
+
+    def sample(self, batch_size, full_path=False):
+        z = self.sample_latent_code(batch_size=batch_size)
+        decode_distribution = self.decode(z)
+        if full_path:
+            return decode_distribution.sample()
+        else:
+            return decode_distribution.mean
 
     def reconstruct(self, data):
         self._set_to_eval()
         with torch.no_grad():
-            mu, logvar = self.encode(data)
-            z = self.reparameterize(mu, logvar)
+            latent_distribution = self.encode(data)
+            z = latent_distribution.sample()
             return self.decode(z)
 
     def save_checkpoint(self, checkpoint_path):
@@ -72,55 +88,58 @@ class VAE(object):
         if all:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
-
-"""
-Trainer for VAE
-"""
-
-
-class Trainer(object):
-    def __init__(self, recon_loss_f):
-        self.recon_loss_f = recon_loss_f
-
-    def train(self, num_epoch, train_data_loader, model: VAE, checkpoint_path, epoch_per_save, callbacks,
-              summary_writer: SummaryWriter):
+    def train(self, num_epoch, train_data_loader, checkpoint_path, epoch_per_save, callbacks,
+              summary_writer: SummaryWriter = None):
         n_iter = 0
         for epoch in range(num_epoch):
-            model._set_to_train()
-            reconstruction_loss_train = 0.
+            self._set_to_train()
+            negative_log_likelihood_train = 0.
             kl_divergence_train = 0.
             print('Epoch {}/{}'.format(epoch + 1, num_epoch))
             for input, label in tqdm(train_data_loader):
-                model.optimizer.zero_grad()
-                input = input.type(FloatTensor)
-                mu, logvar = model.encode(input)
-                z = model.reparameterize(mu, logvar)
-                out = model.decode(z)
+                self.optimizer.zero_grad()
+                input = move_tensor_to_gpu(input)
+                latent_distribution = self.encode(input)
+                z = latent_distribution.rsample()
+                out = self.decode_distribution(z)
 
-                reconstruction_loss = self.recon_loss_f(out, input)
-                kl_divergence = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-                loss = reconstruction_loss + kl_divergence
+                negative_log_likelihood = -out.log_prob(input).sum()
+                kl_divergence = torch.distributions.kl_divergence(latent_distribution, self.prior).sum()
+
+                loss = negative_log_likelihood + kl_divergence
                 loss.backward()
-                model.optimizer.step()
+                self.optimizer.step()
 
-                reconstruction_loss_train += reconstruction_loss.item()
+                negative_log_likelihood_train += negative_log_likelihood.item()
                 kl_divergence_train += kl_divergence.item()
 
-                summary_writer.add_scalar('data/reconstruction_loss', reconstruction_loss.item(), n_iter)
-                summary_writer.add_scalar('data/kl_divergence', kl_divergence.item(), n_iter)
+                if summary_writer:
+                    summary_writer.add_scalar('data/nll', negative_log_likelihood.item(), n_iter)
+                    summary_writer.add_scalar('data/kld', kl_divergence.item(), n_iter)
 
                 n_iter += 1
 
-            reconstruction_loss_train /= len(train_data_loader.dataset)
+            num_dimensions = np.prod(list(train_data_loader.dataset[0][0].shape))
+            negative_log_likelihood_train /= len(train_data_loader.dataset)
+            negative_log_likelihood_train_bits_per_dim = log_to_log2(negative_log_likelihood_train / num_dimensions)
             kl_divergence_train /= len(train_data_loader.dataset)
+            kl_divergence_train_bits_per_dim = log_to_log2(kl_divergence_train / num_dimensions)
+            total_loss = negative_log_likelihood_train + kl_divergence_train
+            total_loss_bits_per_dim = log_to_log2(total_loss / num_dimensions)
 
-            print('Reconstruction loss: {:.4f} - KL divergence: {:.4f}'.format(reconstruction_loss_train,
-                                                                               kl_divergence_train))
+            total_loss_message = 'Totol loss {:.4f}/{:.4f} (bits/dim)'.format(total_loss, total_loss_bits_per_dim)
+            nll_message = 'Negative log likelihood {:.4f}/{:.4f} (bits/dim)'.format(
+                negative_log_likelihood_train, negative_log_likelihood_train_bits_per_dim)
+            kl_message = 'KL divergence {:.4f}/{:.4f} (bits/dim)'.format(kl_divergence_train,
+                                                                        kl_divergence_train_bits_per_dim)
+
+            print(' - '.join([total_loss_message, nll_message, kl_message]))
 
             if (epoch + 1) % epoch_per_save == 0:
-                model.save_checkpoint(checkpoint_path)
+                self.save_checkpoint(checkpoint_path)
 
-            for callback in callbacks:
-                callback(epoch, model, summary_writer)
+            if summary_writer:
+                for callback in callbacks:
+                    callback(epoch, self, summary_writer)
 
-        model.save_checkpoint(checkpoint_path)
+        self.save_checkpoint(checkpoint_path)

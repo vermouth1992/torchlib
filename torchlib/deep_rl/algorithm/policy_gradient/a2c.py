@@ -20,7 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
-from torchlib.deep_rl.utils.distributions import FixedNormalTanh
+from torchlib.utils.distributions import IndependentNormalTanh
 from .utils import compute_reward_to_go_gae
 from .utils import sample_trajectories, pathlength
 
@@ -69,7 +69,7 @@ class A2CAgent(BaseAgent):
             hidden = torch.from_numpy(self.hidden_unit).type(FloatTensor)
             action_dist, hidden, _ = self.policy_net.forward(state, hidden)
             self.hidden_unit = hidden.cpu().numpy()[0]
-            if isinstance(action_dist, FixedNormalTanh):
+            if isinstance(action_dist, IndependentNormalTanh):
                 action, raw_action = action_dist.sample(torch.Size([]), return_raw_value=True)
                 action = action.cpu().numpy()
                 raw_action = raw_action.cpu().numpy()
@@ -151,7 +151,7 @@ class A2CAgent(BaseAgent):
             # compute log prob, assume observation is small.
             if not self.recurrent:
                 distribution, _, raw_baselines = self.policy_net.forward(observation, None)
-                if isinstance(distribution, FixedNormalTanh):
+                if isinstance(distribution, IndependentNormalTanh):
                     log_prob = distribution.log_prob(actions, is_raw_value=True)
                 else:
                     log_prob = distribution.log_prob(actions)
@@ -168,7 +168,7 @@ class A2CAgent(BaseAgent):
                     current_actions = actions[start_index:end_index]
                     current_hidden = convert_numpy_to_tensor(np.expand_dims(self.init_hidden_unit, axis=0))
                     current_dist, _, current_baseline = self.policy_net.forward(current_obs, current_hidden)
-                    if isinstance(current_dist, FixedNormalTanh):
+                    if isinstance(current_dist, IndependentNormalTanh):
                         log_prob.append(current_dist.log_prob(current_actions, is_raw_value=True))
                     else:
                         log_prob.append(current_dist.log_prob(current_actions))
