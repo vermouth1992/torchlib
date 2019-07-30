@@ -31,6 +31,7 @@ class SoftActorCritic(BaseAgent):
                  log_alpha_tensor=None,
                  tau=0.01,
                  alpha=1.0,
+                 min_alpha=0.02,
                  discount=0.99,
                  ):
         self.policy_net = policy_net
@@ -43,7 +44,7 @@ class SoftActorCritic(BaseAgent):
         hard_update(self.target_q_network, self.q_network)
 
         if log_alpha_tensor is not None:
-            self._min_alpha = alpha
+            self._min_alpha = min_alpha
         self._alpha = alpha
         self._discount = discount
         self._tau = tau
@@ -80,12 +81,12 @@ class SoftActorCritic(BaseAgent):
         reward = convert_numpy_to_tensor(reward)
 
         # q loss
-        q_values, q_values2 = self.q_network.forward(obs, actions, minimum=False)
+        q_values, q_values2 = self.q_network.forward(obs, actions, False)
 
         with torch.no_grad():
             next_action_distribution = self.policy_net.forward(next_obs)
             next_action = next_action_distribution.sample()
-            target_q_values = self.target_q_network.forward(next_obs, next_action, minimum=True)
+            target_q_values = self.target_q_network.forward(next_obs, next_action, True)
             q_target = reward + self._discount * (1.0 - done) * target_q_values
 
         q_values_loss = F.mse_loss(q_values, q_target) + F.mse_loss(q_values2, q_target)
@@ -94,7 +95,7 @@ class SoftActorCritic(BaseAgent):
         if self.discrete:
             # for discrete action space, we can directly compute kl divergence analytically without sampling
             action_distribution = self.policy_net.forward(obs)
-            q_values_min = self.q_network.forward(obs, minimum=True)  # (batch_size, ac_dim)
+            q_values_min = self.q_network.forward(obs, None, True)  # (batch_size, ac_dim)
             probs = F.softmax(q_values_min, dim=-1)
             target_distribution = torch.distributions.Categorical(probs=probs)
             policy_loss = torch.distributions.kl_divergence(action_distribution, target_distribution).mean()
@@ -104,10 +105,9 @@ class SoftActorCritic(BaseAgent):
 
         else:
             action_distribution = self.policy_net.forward(obs)
-            pi, pre_tanh_pi = action_distribution.rsample(return_raw_value=True)
-            log_prob = action_distribution.log_prob(pre_tanh_pi, is_raw_value=True)  # should be shape (batch_size,)
-            q_values_pi, q_values2_pi = self.q_network.forward(obs, pi, minimum=False)
-            q_values_pi_min = torch.min(q_values_pi, q_values2_pi)
+            pi = action_distribution.rsample()
+            log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
+            q_values_pi_min = self.q_network.forward(obs, pi, True)
             policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
 
         # alpha loss
@@ -210,6 +210,7 @@ def make_default_parser():
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--n_epochs', type=int, default=500)
     parser.add_argument('--alpha', type=float, default=0.2)
+    parser.add_argument('--min_alpha', type=float, default=0.02)
     parser.add_argument('--tau', type=float, default=5e-3)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--max_episode_length', type=float, default=1000)

@@ -8,7 +8,6 @@ import torch.nn as nn
 
 from torchlib.common import FloatTensor, move_tensor_to_gpu
 from torchlib.dataset.utils import create_data_loader
-from torchlib.utils.distributions import IndependentNormalTanh
 from .a2c import A2CAgent, get_policy_net
 from .utils import compute_reward_to_go_gae
 
@@ -33,10 +32,7 @@ class PPOAgent(A2CAgent):
                 hid = move_tensor_to_gpu(hid)
                 ac = move_tensor_to_gpu(ac)
                 old_distribution, _, _ = self.policy_net.forward(obs, hid)
-                if isinstance(old_distribution, IndependentNormalTanh):
-                    old_log_prob.append(old_distribution.log_prob(ac, is_raw_value=True))
-                else:
-                    old_log_prob.append(old_distribution.log_prob(ac))
+                old_log_prob.append(old_distribution.log_prob(ac))
 
             old_log_prob = torch.cat(old_log_prob, dim=0).cpu()
         return old_log_prob
@@ -78,10 +74,7 @@ class PPOAgent(A2CAgent):
                 if not self.recurrent:
                     distribution, _, raw_baselines = self.policy_net.forward(observation, None)
                     entropy_loss = distribution.entropy().mean()
-                    if isinstance(distribution, IndependentNormalTanh):
-                        log_prob = distribution.log_prob(action, is_raw_value=True)
-                    else:
-                        log_prob = distribution.log_prob(action)
+                    log_prob = distribution.log_prob(action)
                 else:
                     entropy_loss = []
                     log_prob = []
@@ -98,11 +91,7 @@ class PPOAgent(A2CAgent):
                         current_dist, _, current_baseline = self.policy_net.forward(current_obs, current_hidden)
                         current_hidden = torch.tensor(np.expand_dims(self.init_hidden_unit, axis=0),
                                                       requires_grad=False).type(FloatTensor)
-
-                        if isinstance(current_dist, IndependentNormalTanh):
-                            current_log_prob = current_dist.log_prob(current_actions, is_raw_value=True)
-                        else:
-                            current_log_prob = current_dist.log_prob(current_actions)
+                        current_log_prob = current_dist.log_prob(current_actions)
 
                         log_prob.append(current_log_prob)
                         raw_baselines.append(current_baseline)
@@ -116,10 +105,7 @@ class PPOAgent(A2CAgent):
                         current_dist, current_hidden, current_baseline = self.policy_net.forward(current_obs,
                                                                                                  current_hidden)
 
-                        if isinstance(current_dist, IndependentNormalTanh):
-                            current_log_prob = current_dist.log_prob(current_actions, is_raw_value=True)
-                        else:
-                            current_log_prob = current_dist.log_prob(current_actions)
+                        current_log_prob = current_dist.log_prob(current_actions)
 
                         log_prob.append(current_log_prob)
                         raw_baselines.append(current_baseline)

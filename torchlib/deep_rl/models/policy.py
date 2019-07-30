@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from torchlib.common import FloatTensor
-from torchlib.utils.distributions import IndependentNormalTanh
+from torchlib.utils.distributions import IndependentTanhNormal, IndependentNormal
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
@@ -71,9 +71,9 @@ Simple Policy for low dimensional state and action
 """
 
 
-class ContinuousActionHead(nn.Module):
+class NormalActionHead(nn.Module):
     def __init__(self, feature_output_size, action_dim, log_std_range=(-20., 2.)):
-        super(ContinuousActionHead, self).__init__()
+        super(NormalActionHead, self).__init__()
         self.log_std_range = log_std_range
         self.mu_header = nn.Linear(feature_output_size, action_dim)
         self.log_std_header = nn.Linear(feature_output_size, action_dim)
@@ -84,7 +84,38 @@ class ContinuousActionHead(nn.Module):
         mu = self.mu_header.forward(feature)
         logstd = self.log_std_header.forward(feature)
         logstd = torch.clamp(logstd, min=self.log_std_range[0], max=self.log_std_range[1])
-        return IndependentNormalTanh(mu, torch.exp(logstd))
+        return IndependentNormal(mu, torch.exp(logstd))
+
+
+class TanhNormalActionHead(nn.Module):
+    def __init__(self, feature_output_size, action_dim, log_std_range=(-20., 2.)):
+        super(TanhNormalActionHead, self).__init__()
+        self.log_std_range = log_std_range
+        self.mu_header = nn.Linear(feature_output_size, action_dim)
+        self.log_std_header = nn.Linear(feature_output_size, action_dim)
+        torch.nn.init.uniform_(self.mu_header.weight.data, -3e-3, 3e-3)
+        torch.nn.init.uniform_(self.log_std_header.weight.data, -3e-3, 3e-3)
+
+    def forward(self, feature):
+        mu = self.mu_header.forward(feature)
+        logstd = self.log_std_header.forward(feature)
+        logstd = torch.clamp(logstd, min=self.log_std_range[0], max=self.log_std_range[1])
+        return IndependentTanhNormal(mu, torch.exp(logstd))
+
+class BetaActionHead(nn.Module):
+    def __init__(self, feature_output_size, action_dim, log_std_range=(-20., 2.)):
+        super(BetaActionHead, self).__init__()
+        self.log_std_range = log_std_range
+        self.mu_header = nn.Linear(feature_output_size, action_dim)
+        self.log_std_header = nn.Linear(feature_output_size, action_dim)
+        torch.nn.init.uniform_(self.mu_header.weight.data, -3e-3, 3e-3)
+        torch.nn.init.uniform_(self.log_std_header.weight.data, -3e-3, 3e-3)
+
+    def forward(self, feature):
+        mu = self.mu_header.forward(feature)
+        logstd = self.log_std_header.forward(feature)
+        logstd = torch.clamp(logstd, min=self.log_std_range[0], max=self.log_std_range[1])
+        return IndependentTanhNormal(mu, torch.exp(logstd))
 
 
 class DiscreteActionHead(nn.Module):

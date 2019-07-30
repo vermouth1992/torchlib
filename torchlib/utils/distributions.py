@@ -6,7 +6,7 @@ Rewrite Pytorch builtin distribution function to favor policy gradient
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributions import Normal, Independent, Transform, constraints, TransformedDistribution
+from torch.distributions import Normal, Independent, Transform, constraints, TransformedDistribution, Distribution
 
 from torchlib.common import eps
 
@@ -37,7 +37,7 @@ class TanhNormal(TransformedDistribution):
 
     def __init__(self, loc, scale, validate_args=None):
         base_dist = Normal(loc, scale)
-        super(TanhNormal, self).__init__(base_dist, TanhTransform(), validate_args=validate_args)
+        super(TanhNormal, self).__init__(base_dist, TanhTransform(cache_size=1), validate_args=validate_args)
 
     def expand(self, batch_shape, _instance=None):
         new = self._get_checked_instance(TanhNormal, _instance)
@@ -52,11 +52,67 @@ class TanhNormal(TransformedDistribution):
         return self.base_dist.scale
 
 
-def create_independent_normal(loc, scale, validate_args=None):
-    return Independent(Normal(loc=loc, scale=scale, validate_args=validate_args), len(loc.shape) - 1,
-                       validate_args=validate_args)
+class IndependentNormal(Distribution):
+    arg_constraints = {'loc': constraints.real, 'scale': constraints.positive}
+    support = constraints.positive
+    has_rsample = True
+
+    def __init__(self, loc, scale, validate_args=None):
+        self.base_dist = Independent(Normal(loc=loc, scale=scale, validate_args=validate_args), len(loc.shape) - 1,
+                                     validate_args=validate_args)
+        super(IndependentNormal, self).__init__(self.base_dist.batch_shape, self.base_dist.event_shape,
+                                                validate_args=validate_args)
+
+    def log_prob(self, value):
+        return self.base_dist.log_prob(value)
+
+    @property
+    def mean(self):
+        return self.base_dist.mean
+
+    @property
+    def variance(self):
+        return self.base_dist.variance
+
+    def sample(self, sample_shape=torch.Size()):
+        return self.base_dist.sample(sample_shape)
+
+    def rsample(self, sample_shape=torch.Size()):
+        return self.base_dist.rsample(sample_shape)
+
+    def entropy(self):
+        entropy = self.base_dist.entropy()
+        return entropy
 
 
-def create_independent_tanh_normal(loc, scale, validate_args=None):
-    return Independent(TanhNormal(loc=loc, scale=scale, validate_args=validate_args), len(loc.shape) - 1,
-                       validate_args=validate_args)
+class IndependentTanhNormal(Distribution):
+    arg_constraints = {'loc': constraints.real, 'scale': constraints.positive}
+    support = constraints.positive
+    has_rsample = True
+
+    def __init__(self, loc, scale, validate_args=None):
+        self.base_dist = Independent(TanhNormal(loc=loc, scale=scale, validate_args=validate_args), len(loc.shape) - 1,
+                                     validate_args=validate_args)
+        super(IndependentTanhNormal, self).__init__(self.base_dist.batch_shape, self.base_dist.event_shape,
+                                                    validate_args=validate_args)
+
+    def log_prob(self, value):
+        return self.base_dist.log_prob(value)
+
+    @property
+    def mean(self):
+        return self.base_dist.mean
+
+    @property
+    def variance(self):
+        return self.base_dist.variance
+
+    def sample(self, sample_shape=torch.Size()):
+        return self.base_dist.sample(sample_shape)
+
+    def rsample(self, sample_shape=torch.Size()):
+        return self.base_dist.rsample(sample_shape)
+
+    def entropy(self):
+        entropy = self.base_dist.entropy()
+        return entropy

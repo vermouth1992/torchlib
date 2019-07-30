@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import torchlib.deep_rl as deep_rl
+from torchlib import deep_rl
 from torchlib.common import FloatTensor, enable_cuda, eps
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.envs.wrappers import get_wrapper_by_name

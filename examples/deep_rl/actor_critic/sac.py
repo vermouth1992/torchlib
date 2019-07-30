@@ -6,7 +6,7 @@ import torch.optim
 
 import torchlib.deep_rl as deep_rl
 import torchlib.deep_rl.algorithm as algo
-from torchlib.common import FloatTensor
+from torchlib.common import device
 
 if __name__ == '__main__':
     parser = algo.sac.make_default_parser()
@@ -41,7 +41,7 @@ if __name__ == '__main__':
             target_entropy = -env.action_space.n
         else:
             target_entropy = -np.prod(env.action_space.shape)
-        log_alpha_tensor = torch.zeros(1, requires_grad=True).type(FloatTensor)
+        log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)
         alpha_optimizer = torch.optim.Adam([log_alpha_tensor], lr=learning_rate)
 
     else:
@@ -54,6 +54,7 @@ if __name__ == '__main__':
                                      discrete=discrete,
                                      target_entropy=target_entropy,
                                      log_alpha_tensor=log_alpha_tensor,
+                                     min_alpha=args['min_alpha'],
                                      alpha_optimizer=alpha_optimizer,
                                      tau=args['tau'], alpha=args['alpha'], discount=args['discount'])
 

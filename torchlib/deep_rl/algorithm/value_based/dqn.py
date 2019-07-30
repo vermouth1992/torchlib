@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim
 from gym import wrappers
 
-import torchlib.deep_rl as deep_rl
+from torchlib import deep_rl
 import torchlib.utils.random
 from torchlib.common import FloatTensor, LongTensor, enable_cuda, eps
 from torchlib.deep_rl.envs.wrappers import get_wrapper_by_name
