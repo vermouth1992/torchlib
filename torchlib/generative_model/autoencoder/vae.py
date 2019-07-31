@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim
 from torch.distributions import Distribution
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from torchlib.common import enable_cuda, move_tensor_to_gpu
 from torchlib.utils.math import log_to_log2
@@ -88,7 +88,7 @@ class VAE(object):
         if all:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
-    def train(self, num_epoch, train_data_loader, checkpoint_path, epoch_per_save, callbacks,
+    def train(self, num_epoch, train_data_loader, checkpoint_path=None, epoch_per_save=5, callbacks=(),
               summary_writer: SummaryWriter = None):
         n_iter = 0
         for epoch in range(num_epoch):
@@ -96,7 +96,8 @@ class VAE(object):
             negative_log_likelihood_train = 0.
             kl_divergence_train = 0.
             print('Epoch {}/{}'.format(epoch + 1, num_epoch))
-            for input, label in tqdm(train_data_loader):
+            for data_batch in tqdm(train_data_loader):
+                input = data_batch[0]
                 self.optimizer.zero_grad()
                 input = move_tensor_to_gpu(input)
                 latent_distribution = self.encode(input)
@@ -131,15 +132,15 @@ class VAE(object):
             nll_message = 'Negative log likelihood {:.4f}/{:.4f} (bits/dim)'.format(
                 negative_log_likelihood_train, negative_log_likelihood_train_bits_per_dim)
             kl_message = 'KL divergence {:.4f}/{:.4f} (bits/dim)'.format(kl_divergence_train,
-                                                                        kl_divergence_train_bits_per_dim)
+                                                                         kl_divergence_train_bits_per_dim)
 
             print(' - '.join([total_loss_message, nll_message, kl_message]))
 
-            if (epoch + 1) % epoch_per_save == 0:
+            if checkpoint_path is not None and (epoch + 1) % epoch_per_save == 0:
                 self.save_checkpoint(checkpoint_path)
 
             if summary_writer:
                 for callback in callbacks:
                     callback(epoch, self, summary_writer)
-
-        self.save_checkpoint(checkpoint_path)
+        if checkpoint_path is not None:
+            self.save_checkpoint(checkpoint_path)
