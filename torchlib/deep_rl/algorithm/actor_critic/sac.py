@@ -244,14 +244,14 @@ def get_policy_net_q_network(env, args):
         ob_dim = env.observation_space.shape[0]
         ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
         if discrete:
-            from torchlib.deep_rl.models import DiscreteNNFeedForwardPolicy, DoubleQModule
-            policy_net = DiscreteNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
-                                                     action_dim=ac_dim)
+            from torchlib.deep_rl.models import CategoricalNNFeedForwardPolicy, DoubleQModule
+            policy_net = CategoricalNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
+                                                        action_dim=ac_dim)
             q_network = DoubleQModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
         else:
-            from torchlib.deep_rl.models import ContinuousNNFeedForwardPolicy, DoubleCriticModule
+            from torchlib.deep_rl.models import TanhNormalNNFeedForwardPolicy, DoubleCriticModule
 
-            policy_net = ContinuousNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
+            policy_net = TanhNormalNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
                                                        action_dim=ac_dim)
             q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
 

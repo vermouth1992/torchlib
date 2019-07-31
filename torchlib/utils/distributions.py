@@ -3,10 +3,12 @@ Rewrite Pytorch builtin distribution function to favor policy gradient
 1. Normal distribution with multiple mean and std as a single distribution
 """
 
+import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributions import Normal, Independent, Transform, constraints, TransformedDistribution, Distribution
+from torch.distributions import Independent, Transform, constraints, TransformedDistribution, Distribution
+from torch.distributions import Normal, Beta, AffineTransform
 
 from torchlib.common import eps
 
@@ -95,6 +97,61 @@ class IndependentTanhNormal(Distribution):
                                      validate_args=validate_args)
         super(IndependentTanhNormal, self).__init__(self.base_dist.batch_shape, self.base_dist.event_shape,
                                                     validate_args=validate_args)
+
+    def log_prob(self, value):
+        return self.base_dist.log_prob(value)
+
+    @property
+    def mean(self):
+        return self.base_dist.mean
+
+    @property
+    def variance(self):
+        return self.base_dist.variance
+
+    def sample(self, sample_shape=torch.Size()):
+        return self.base_dist.sample(sample_shape)
+
+    def rsample(self, sample_shape=torch.Size()):
+        return self.base_dist.rsample(sample_shape)
+
+    def entropy(self):
+        entropy = self.base_dist.entropy()
+        return entropy
+
+
+class RescaledBeta(TransformedDistribution):
+    arg_constraints = {'concentration1': constraints.positive, 'concentration0': constraints.positive}
+    support = constraints.interval(-1., 1.)
+    has_rsample = True
+
+    def __init__(self, concentration1, concentration0, validate_args=None):
+        base_distribution = Beta(concentration1, concentration0, validate_args=validate_args)
+        super(RescaledBeta, self).__init__(base_distribution=base_distribution,
+                                           transforms=AffineTransform(loc=-1., scale=2.))
+
+    def entropy(self):
+        return self.base_dist.entropy() + math.log(2.)
+
+    def sample(self, sample_shape=torch.Size()):
+        out = super(RescaledBeta, self).sample(sample_shape)
+        return torch.clamp(out, -1. + eps, 1. - eps)
+
+    def rsample(self, sample_shape=torch.Size()):
+        out = super(RescaledBeta, self).rsample(sample_shape)
+        return torch.clamp(out, -1. + eps, 1. - eps)
+
+
+class IndependentRescaledBeta(Distribution):
+    arg_constraints = {'concentration1': constraints.positive, 'concentration0': constraints.positive}
+    support = constraints.interval(-1., 1.)
+    has_rsample = True
+
+    def __init__(self, concentration1, concentration0, validate_args=None):
+        self.base_dist = Independent(RescaledBeta(concentration1, concentration0, validate_args),
+                                     len(concentration1.shape) - 1, validate_args=validate_args)
+        super(IndependentRescaledBeta, self).__init__(self.base_dist.batch_shape, self.base_dist.event_shape,
+                                                      validate_args=validate_args)
 
     def log_prob(self, value):
         return self.base_dist.log_prob(value)

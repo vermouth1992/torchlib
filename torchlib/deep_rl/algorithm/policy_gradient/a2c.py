@@ -308,17 +308,17 @@ def get_policy_net(env, args):
     recurrent = args['recurrent']
     hidden_size = args['hidden_size']
 
-    from torchlib.deep_rl.models.policy import ContinuousNNPolicy, DiscreteNNPolicy
+    from torchlib.deep_rl.models.policy import NormalNNPolicy, CategoricalNNPolicy, BetaNNPolicy
     from torchlib.deep_rl.envs import is_atari_env, is_ple_game
 
     if len(env.observation_space.shape) == 1:
         # low dimensional environment
         if discrete:
-            policy_net = DiscreteNNPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
-                                          recurrent=recurrent, hidden_size=hidden_size)
+            policy_net = CategoricalNNPolicy(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
+                                             recurrent=recurrent, hidden_size=hidden_size)
         else:
-            policy_net = ContinuousNNPolicy(recurrent=recurrent, nn_size=args['nn_size'], state_dim=ob_dim,
-                                            action_dim=ac_dim, hidden_size=hidden_size)
+            policy_net = BetaNNPolicy(recurrent=recurrent, nn_size=args['nn_size'], state_dim=ob_dim,
+                                      action_dim=ac_dim, hidden_size=hidden_size)
 
         if enable_cuda:
             policy_net.cuda()
