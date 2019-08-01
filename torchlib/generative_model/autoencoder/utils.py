@@ -8,7 +8,7 @@ import torch
 import torchvision
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torchlib.common import FloatTensor
 
 
@@ -18,10 +18,11 @@ class SampleImage(object):
         self.n_col = n_col
         self.fixed_z = None
 
+    @torch.no_grad()
     def __call__(self, epoch, model, summary_writer: SummaryWriter):
         if self.fixed_z is None:
             self.fixed_z = model.sample_latent_code(self.n_row * self.n_col)
-
+        model._set_to_eval()
         image = model.decode(self.fixed_z)
         x = torchvision.utils.make_grid(image, nrow=self.n_row)
         summary_writer.add_image('fig/Samples', x, epoch)
@@ -58,7 +59,9 @@ class VisualizeLatent(object):
         elif method == 'pca':
             self.model = PCA
 
+    @torch.no_grad()
     def __call__(self, n_iter, model, summary_writer: SummaryWriter):
+        model._set_to_eval()
         latent_list = []
         for data, _ in self.data_loader:
             latent = model.encode_reparm(data.type(FloatTensor))

@@ -56,20 +56,22 @@ class VAE(object):
     def decode_distribution(self, z):
         return self.decoder.forward(z)
 
+    @torch.no_grad()
     def sample(self, batch_size, full_path=False):
+        self._set_to_eval()
         z = self.sample_latent_code(batch_size=batch_size)
-        decode_distribution = self.decode(z)
+        decode_distribution = self.decode_distribution(z)
         if full_path:
             return decode_distribution.sample()
         else:
             return decode_distribution.mean
 
+    @torch.no_grad()
     def reconstruct(self, data):
         self._set_to_eval()
-        with torch.no_grad():
-            latent_distribution = self.encode(data)
-            z = latent_distribution.sample()
-            return self.decode(z)
+        latent_distribution = self.encode(data)
+        z = latent_distribution.sample()
+        return self.decode(z)
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -89,14 +91,19 @@ class VAE(object):
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
     def train(self, num_epoch, train_data_loader, checkpoint_path=None, epoch_per_save=5, callbacks=(),
-              summary_writer: SummaryWriter = None):
+              summary_writer: SummaryWriter = None, verbose=True):
         n_iter = 0
         for epoch in range(num_epoch):
             self._set_to_train()
             negative_log_likelihood_train = 0.
             kl_divergence_train = 0.
-            print('Epoch {}/{}'.format(epoch + 1, num_epoch))
-            for data_batch in tqdm(train_data_loader):
+
+            if verbose:
+                t = tqdm(train_data_loader, desc='Epoch {}/{}'.format(epoch + 1, num_epoch))
+            else:
+                t = train_data_loader
+
+            for data_batch in t:
                 input = data_batch[0]
                 self.optimizer.zero_grad()
                 input = move_tensor_to_gpu(input)
@@ -120,21 +127,22 @@ class VAE(object):
 
                 n_iter += 1
 
-            num_dimensions = np.prod(list(train_data_loader.dataset[0][0].shape))
-            negative_log_likelihood_train /= len(train_data_loader.dataset)
-            negative_log_likelihood_train_bits_per_dim = log_to_log2(negative_log_likelihood_train / num_dimensions)
-            kl_divergence_train /= len(train_data_loader.dataset)
-            kl_divergence_train_bits_per_dim = log_to_log2(kl_divergence_train / num_dimensions)
-            total_loss = negative_log_likelihood_train + kl_divergence_train
-            total_loss_bits_per_dim = log_to_log2(total_loss / num_dimensions)
+            if verbose:
+                num_dimensions = np.prod(list(train_data_loader.dataset[0][0].shape))
+                negative_log_likelihood_train /= len(train_data_loader.dataset)
+                negative_log_likelihood_train_bits_per_dim = log_to_log2(negative_log_likelihood_train / num_dimensions)
+                kl_divergence_train /= len(train_data_loader.dataset)
+                kl_divergence_train_bits_per_dim = log_to_log2(kl_divergence_train / num_dimensions)
+                total_loss = negative_log_likelihood_train + kl_divergence_train
+                total_loss_bits_per_dim = log_to_log2(total_loss / num_dimensions)
 
-            total_loss_message = 'Totol loss {:.4f}/{:.4f} (bits/dim)'.format(total_loss, total_loss_bits_per_dim)
-            nll_message = 'Negative log likelihood {:.4f}/{:.4f} (bits/dim)'.format(
-                negative_log_likelihood_train, negative_log_likelihood_train_bits_per_dim)
-            kl_message = 'KL divergence {:.4f}/{:.4f} (bits/dim)'.format(kl_divergence_train,
-                                                                         kl_divergence_train_bits_per_dim)
+                total_loss_message = 'Totol loss {:.4f}/{:.4f} (bits/dim)'.format(total_loss, total_loss_bits_per_dim)
+                nll_message = 'Negative log likelihood {:.4f}/{:.4f} (bits/dim)'.format(
+                    negative_log_likelihood_train, negative_log_likelihood_train_bits_per_dim)
+                kl_message = 'KL divergence {:.4f}/{:.4f} (bits/dim)'.format(kl_divergence_train,
+                                                                             kl_divergence_train_bits_per_dim)
 
-            print(' - '.join([total_loss_message, nll_message, kl_message]))
+                print(' - '.join([total_loss_message, nll_message, kl_message]))
 
             if checkpoint_path is not None and (epoch + 1) % epoch_per_save == 0:
                 self.save_checkpoint(checkpoint_path)
