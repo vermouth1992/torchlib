@@ -9,7 +9,8 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from torchlib.common import enable_cuda, move_tensor_to_gpu, convert_numpy_to_tensor, FloatTensor
-from torchlib.utils import normalize, unnormalize
+from torchlib.utils.layers import freeze, unfreeze
+from torchlib.utils.math import normalize, unnormalize
 from .utils import EpisodicDataset as Dataset
 
 
@@ -22,9 +23,11 @@ class WorldModel(object):
             self.dynamics_model.cuda()
 
     def train(self):
+        unfreeze(self.dynamics_model)
         self.dynamics_model.train()
 
     def eval(self):
+        freeze(self.dynamics_model)
         self.dynamics_model.eval()
 
     def set_statistics(self, dataset):

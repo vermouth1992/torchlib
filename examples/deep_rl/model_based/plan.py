@@ -11,6 +11,7 @@ def make_parser():
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--horizon', type=int, default=15)
     parser.add_argument('--num_actions', type=int, default=4096)
+    parser.add_argument('--num_iter', type=int, default=100)
     parser.add_argument('--num_init_random_rollouts', type=int, default=10)
     parser.add_argument('--max_rollout_length', type=int, default=500)
     parser.add_argument('--num_on_policy_iters', type=int, default=10)
@@ -18,7 +19,7 @@ def make_parser():
     parser.add_argument('--training_epochs', type=int, default=60)
     parser.add_argument('--training_batch_size', type=int, default=128)
     parser.add_argument('--dataset_maxlen', type=int, default=10000)
-    parser.add_argument('--planner', type=str, choices=['random', 'uct'], default='random')
+    parser.add_argument('--planner', type=str, choices=['random', 'uct', 'gradient'], default='random')
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--dagger', action='store_true')
     return parser
@@ -85,6 +86,15 @@ if __name__ == '__main__':
         planner = deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
                                                                    horizon=args['horizon'],
                                                                    num_reads=args['num_actions'])
+
+    elif args['planner'] == 'gradient':
+        planner = deep_rl.algorithm.model_based.planner.GradientDescentActionPlanner(model=model,
+                                                                                     action_sampler=action_sampler,
+                                                                                     cost_fn=env.cost_fn_batch,
+                                                                                     horizon=args['horizon'],
+                                                                                     num_iterations=args['num_iter'],
+                                                                                     gamma=args['gamma'])
+
     else:
         raise ValueError('Unknown planner {}'.format(args['planner']))
 

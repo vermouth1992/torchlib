@@ -4,6 +4,7 @@ Planner for model-based RL
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from torchlib.common import convert_numpy_to_tensor, FloatTensor
 from torchlib.deep_rl import BaseAgent
@@ -62,6 +63,66 @@ class BestRandomActionPlanner(Planner):
             best_action = actions[0, torch.argmin(cost, dim=0)]
             best_action = best_action.cpu().numpy()
             return best_action
+
+
+class TanhActionModule(nn.Module):
+    def __init__(self, init_action):
+        super(TanhActionModule, self).__init__()
+        init_action = convert_numpy_to_tensor(init_action)
+        self.action = nn.Parameter(data=init_action, requires_grad=True)
+
+    def forward(self, h):
+        return torch.tanh(self.action[h: h + 1])
+
+
+class GradientDescentActionPlanner(Planner):
+    """
+    Notes: only applicable to continuous action space. It also requires that cost_fn is differentiable.
+    """
+
+    def __init__(self, model, action_sampler, cost_fn=None, horizon=15, num_iterations=100, gamma=0.95):
+        super(GradientDescentActionPlanner, self).__init__(model=model)
+        self.action_sampler = action_sampler
+        self.horizon = horizon
+        self.num_iterations = num_iterations
+        self.gamma_inverse = 1. / gamma
+        if cost_fn is None:
+            self.cost_fn = model.cost_fn
+        else:
+            self.cost_fn = cost_fn
+
+    def predict(self, state):
+        """ The model must be in evaluation mode and turn off gradient update
+
+        Args:
+            state: (ob_dim)
+
+        Returns: optimal action (ac_dim)
+
+        """
+        action_module = TanhActionModule(init_action=self.action_sampler.sample((self.horizon,)))
+        optimizer = torch.optim.Adam(action_module.parameters(), lr=1e-3)
+        # t = tqdm(range(self.num_iterations), desc='Planning')
+        t = range(self.num_iterations)
+        for iteration in t:
+            optimizer.zero_grad()
+            cost = []
+            current_state = convert_numpy_to_tensor(np.expand_dims(state, axis=0))
+            for h in range(self.horizon):
+                current_action = action_module.forward(h)
+                next_states = self.model.predict_next_states(current_state, current_action)
+                cost.append(self.cost_fn(current_state, current_action, next_states) * self.gamma_inverse)
+                current_state = next_states
+            cost = torch.mean(torch.cat(cost))
+            cost.backward()
+
+            nn.utils.clip_grad_norm_(action_module.parameters(), max_norm=1.0)
+
+            optimizer.step()
+
+            # t.set_description('Iter {}/{}, Cost {:.4f}'.format(iteration + 1, self.num_iterations, cost.item()))
+
+        return action_module.forward(0)[0].cpu().detach().numpy()
 
 
 class GameState(object):
