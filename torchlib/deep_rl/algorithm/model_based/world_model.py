@@ -6,11 +6,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
-
 from torchlib.common import enable_cuda, move_tensor_to_gpu, convert_numpy_to_tensor, FloatTensor
 from torchlib.utils.layers import freeze, unfreeze
 from torchlib.utils.math import normalize, unnormalize
+from tqdm import tqdm
+
 from .utils import EpisodicDataset as Dataset
 
 
@@ -31,16 +31,16 @@ class WorldModel(object):
         self.dynamics_model.eval()
 
     def set_statistics(self, dataset):
-        self.state_mean = convert_numpy_to_tensor(dataset.state_mean)
-        self.state_std = convert_numpy_to_tensor(dataset.state_std)
+        self.state_mean = convert_numpy_to_tensor(dataset.state_mean).unsqueeze(dim=0)
+        self.state_std = convert_numpy_to_tensor(dataset.state_std).unsqueeze(dim=0)
         if self.dynamics_model.discrete:
             self.action_mean = None
             self.action_std = None
         else:
-            self.action_mean = convert_numpy_to_tensor(dataset.action_mean)
-            self.action_std = convert_numpy_to_tensor(dataset.action_std)
-        self.delta_state_mean = convert_numpy_to_tensor(dataset.delta_state_mean)
-        self.delta_state_std = convert_numpy_to_tensor(dataset.delta_state_std)
+            self.action_mean = convert_numpy_to_tensor(dataset.action_mean).unsqueeze(dim=0)
+            self.action_std = convert_numpy_to_tensor(dataset.action_std).unsqueeze(dim=0)
+        self.delta_state_mean = convert_numpy_to_tensor(dataset.delta_state_mean).unsqueeze(dim=0)
+        self.delta_state_std = convert_numpy_to_tensor(dataset.delta_state_std).unsqueeze(dim=0)
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         raise NotImplementedError
@@ -55,9 +55,6 @@ class WorldModel(object):
         return next_state
 
     def predict_next_states(self, states, actions):
-        raise NotImplementedError
-
-    def cost_fn(self, states, actions):
         raise NotImplementedError
 
     @property

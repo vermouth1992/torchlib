@@ -9,9 +9,9 @@ The steps are:
 
 import torch
 from gym import Env
-
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
+
 from .environment import VirtualEnv
 from .planner import Planner
 from .policy import ImitationPolicy
@@ -58,10 +58,12 @@ class ModelBasedAgent(BaseAgent):
               model_training_epochs=60,
               policy_training_epochs=60,
               training_batch_size=512,
+              default_policy=None,
               verbose=True,
               checkpoint_path=None):
         # collect dataset using random policy
-        random_policy = RandomAgent(env.action_space)
+        if default_policy is None:
+            default_policy = RandomAgent(env.action_space)
         dataset = Dataset(maxlen=dataset_maxlen)
 
         print('Gathering initial dataset...')
@@ -69,7 +71,7 @@ class ModelBasedAgent(BaseAgent):
         if max_rollout_length <= 0:
             max_rollout_length = env.spec.max_episode_steps
 
-        initial_dataset = gather_rollouts(env, random_policy, num_init_random_rollouts, max_rollout_length)
+        initial_dataset = gather_rollouts(env, default_policy, num_init_random_rollouts, max_rollout_length)
         dataset.append(initial_dataset)
 
         # gather new rollouts using MPC and retrain dynamics model
