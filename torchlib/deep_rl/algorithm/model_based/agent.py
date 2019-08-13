@@ -170,7 +170,6 @@ class ModelBasedDAggerAgent(ModelBasedPlanAgent):
     def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         if len(self.state_action_dataset) > 0:
             self.policy.train()
-            self.policy.set_state_stats(dataset.state_mean, dataset.state_std)
             self.policy.fit(self.state_action_dataset, epoch=epoch, batch_size=batch_size,
                             verbose=verbose)
 

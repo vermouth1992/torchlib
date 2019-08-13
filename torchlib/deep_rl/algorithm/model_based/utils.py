@@ -2,7 +2,6 @@ from collections import OrderedDict, deque, namedtuple
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-
 from torchlib.dataset.utils import create_data_loader
 from torchlib.deep_rl import BaseAgent
 
@@ -308,9 +307,10 @@ class EpisodicDataset(object):
         train_tuple = output_tuple[0::2]
         val_tuple = output_tuple[1::2]
 
+        # in training, we drop last batch to avoid batch size 1 that may crash batch_norm layer.
         train_data_loader = create_data_loader(train_tuple, batch_size=batch_size, shuffle=True,
-                                               drop_last=False)
-        val_data_loader = create_data_loader(val_tuple, batch_size=batch_size, shuffle=True,
+                                               drop_last=True)
+        val_data_loader = create_data_loader(val_tuple, batch_size=batch_size, shuffle=False,
                                              drop_last=False)
 
         return train_data_loader, val_data_loader
@@ -360,12 +360,24 @@ class StateActionPairDataset(object):
         actions = np.array(self.actions)
         return np.mean(actions, axis=0), np.std(actions, axis=0)
 
-    def random_iterator(self, batch_size):
+    def random_iterator(self, batch_size, train_val_split_ratio=0.2):
         states = np.array(self.states)
         actions = np.array(self.actions)
-        data_loader = create_data_loader((states, actions), batch_size=batch_size,
-                                         shuffle=True, drop_last=False)
-        return data_loader
+
+        input_tuple = (states, actions)
+
+        output_tuple = train_test_split(*input_tuple, test_size=train_val_split_ratio)
+
+        train_tuple = output_tuple[0::2]
+        val_tuple = output_tuple[1::2]
+
+        # in training, we drop last batch to avoid batch size 1 that may crash batch_norm layer.
+        train_data_loader = create_data_loader(train_tuple, batch_size=batch_size, shuffle=True,
+                                               drop_last=True)
+        val_data_loader = create_data_loader(val_tuple, batch_size=batch_size, shuffle=False,
+                                             drop_last=False)
+
+        return train_data_loader, val_data_loader
 
 
 def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) -> EpisodicDataset:

@@ -6,11 +6,10 @@ For continuous case, we use regressor.
 import numpy as np
 import torch
 import torch.nn as nn
-from tqdm import tqdm
-
 from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.algorithm.model_based.utils import StateActionPairDataset
+from tqdm.auto import tqdm
 
 
 class ImitationPolicy(BaseAgent):
@@ -66,9 +65,11 @@ class ImitationPolicy(BaseAgent):
         if verbose:
             t = tqdm(t)
 
+        train_data_loader, val_data_loader = dataset.random_iterator(batch_size=batch_size)
+
         for i in t:
             losses = []
-            for state, action in dataset.random_iterator(batch_size=batch_size):
+            for state, action in train_data_loader:
                 self.optimizer.zero_grad()
                 state = move_tensor_to_gpu(state)
                 action = move_tensor_to_gpu(action)
@@ -80,8 +81,22 @@ class ImitationPolicy(BaseAgent):
 
                 losses.append(loss.item())
 
+            self.eval()
+            val_losses = []
+            with torch.no_grad():
+                for state, action in val_data_loader:
+                    state = move_tensor_to_gpu(state)
+                    action = move_tensor_to_gpu(action)
+                    state = (state - self.state_mean) / self.state_std
+                    output = self.model.forward(state)
+                    loss = self.loss_fn(output, action)
+                    val_losses.append(loss.item())
+
+            self.train()
+
             if verbose:
-                t.set_description('Epoch {}/{} - Avg policy loss: {:.4f}'.format(i + 1, epoch, np.mean(losses)))
+                t.set_description('Epoch {}/{} - Avg policy train loss: {:.4f} - Avg policy val loss: {:.4f}'.format(
+                    i + 1, epoch, np.mean(losses), np.mean(val_losses)))
 
 
 class DiscreteImitationPolicy(ImitationPolicy):
