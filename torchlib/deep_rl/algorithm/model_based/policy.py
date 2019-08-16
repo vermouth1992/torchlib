@@ -46,8 +46,8 @@ class ImitationPolicy(BaseAgent):
         self.state_std = state_dict['state_std']
 
     def set_state_stats(self, state_mean, state_std):
-        self.state_mean = convert_numpy_to_tensor(state_mean)
-        self.state_std = convert_numpy_to_tensor(state_std)
+        self.state_mean = convert_numpy_to_tensor(state_mean).unsqueeze(dim=0)
+        self.state_std = convert_numpy_to_tensor(state_std).unsqueeze(dim=0)
 
     def predict(self, state):
         """
