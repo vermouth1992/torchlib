@@ -1,7 +1,7 @@
 from .atari_wrappers import wrap_deepmind_ram, wrap_deepmind
 from .flappy_bird_wrappers import wrap_flappybird
 from .model_based import model_based_wrapper_dict
-from .common import ClipActionWrapper
+from .common import ClipActionWrapper, ObservationDTypeWrapper, ObservationActionWrapper
 import gym
 
 

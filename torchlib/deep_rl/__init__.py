@@ -43,6 +43,12 @@ class BaseAgent(object):
     def load_state_dict(self, states):
         pass
 
+    def save_checkpoint(self, checkpoint_path):
+        pass
+
+    def load_checkpoint(self, checkpoint_path):
+        pass
+
 
 class RandomAgent(BaseAgent):
     def __init__(self, action_space: Space):
