@@ -4,7 +4,6 @@ Low dimension control using TD3
 
 import pprint
 
-import gym
 import torch.optim
 from torchlib import deep_rl
 from torchlib.deep_rl.envs.wrappers import ObservationDTypeWrapper
@@ -15,7 +14,7 @@ if __name__ == '__main__':
     pprint.pprint(args)
 
     env_name = args['env_name']
-    env = gym.make(env_name)
+    env = deep_rl.envs.make_env(env_name, args)
     env = ObservationDTypeWrapper(env)
 
     actor_module, critic_module = deep_rl.algorithm.value_based.td3.get_default_actor_critic(env, args)
