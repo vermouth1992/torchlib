@@ -154,16 +154,16 @@ class TD3(deep_rl.BaseAgent):
 
             if global_step % log_freq == 0:
                 episode_rewards = deep_rl.envs.wrappers.get_wrapper_by_name(env, "Monitor").get_episode_rewards()
-                last_one_hundred_episode_reward = episode_rewards[-100:]
-                mean_episode_reward = np.mean(last_one_hundred_episode_reward)
-                std_episode_reward = np.std(last_one_hundred_episode_reward)
+                last_episode_reward = episode_rewards[-10:]
+                mean_episode_reward = np.mean(last_episode_reward)
+                std_episode_reward = np.std(last_episode_reward)
                 best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
 
                 print('------------')
                 print("Timestep {}/{}".format(global_step, total_steps))
-                print("mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-                print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_one_hundred_episode_reward),
-                                                             np.max(last_one_hundred_episode_reward)))
+                print("mean reward (10 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
+                print('reward range [{:.2f}, {:.2f}]'.format(np.min(last_episode_reward),
+                                                             np.max(last_episode_reward)))
                 print("best mean reward {:.2f}".format(best_mean_episode_reward))
                 print("episodes {}".format(len(episode_rewards)))
 
@@ -177,9 +177,7 @@ def make_default_parser():
     parser.add_argument('--nn_size', type=int, default=64)
     parser.add_argument('--learning_rate', type=float, default=3e-4)
     parser.add_argument('--log_freq', type=int, default=1000)
-
-    parser.add_argument('--max_episode_length', type=float, default=1000)
-
+    # parser.add_argument('--max_episode_length', type=float, default=1000)
     parser.add_argument('--clip_noise', type=float, default=0.5)
     parser.add_argument('--target_noise', type=float, default=0.2)
     parser.add_argument('--batch_size', type=int, default=128)
