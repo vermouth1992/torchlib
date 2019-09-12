@@ -72,25 +72,23 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
-    model = deep_rl.algorithm.model_based.DeterministicWorldModel(dynamics_model=dynamics_model, optimizer=optimizer)
+    model = deep_rl.algorithm.model_based.DeterministicWorldModel(dynamics_model=dynamics_model, optimizer=optimizer,
+                                                                  cost_fn_batch=env.cost_fn_batch)
 
     if args['planner'] == 'random':
         planner = deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model,
                                                                                 action_sampler=action_sampler,
-                                                                                cost_fn=env.cost_fn_batch,
                                                                                 horizon=args['horizon'],
                                                                                 num_random_action_selection=args[
                                                                                     'num_actions'],
                                                                                 gamma=args['gamma'])
     elif args['planner'] == 'uct':
         planner = deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
-                                                                   horizon=args['horizon'],
                                                                    num_reads=args['num_actions'])
 
     elif args['planner'] == 'gradient':
         planner = deep_rl.algorithm.model_based.planner.GradientDescentActionPlanner(model=model,
                                                                                      action_sampler=action_sampler,
-                                                                                     cost_fn=env.cost_fn_batch,
                                                                                      horizon=args['horizon'],
                                                                                      num_iterations=args['num_iter'],
                                                                                      gamma=args['gamma'])

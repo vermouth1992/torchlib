@@ -5,10 +5,10 @@ Planner for model-based RL
 import numpy as np
 import torch
 import torch.nn as nn
-
 from torchlib.common import convert_numpy_to_tensor, FloatTensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.sampler import BaseSampler, IntSampler
+
 from .world_model import WorldModel
 
 
@@ -25,8 +25,7 @@ class Planner(BaseAgent):
 
 
 class BestRandomActionPlanner(Planner):
-    def __init__(self, model, action_sampler: BaseSampler, cost_fn=None,
-                 horizon=15, num_random_action_selection=4096, gamma=0.95):
+    def __init__(self, model, action_sampler: BaseSampler, horizon=15, num_random_action_selection=4096, gamma=0.95):
         """
 
         Args:
@@ -41,10 +40,6 @@ class BestRandomActionPlanner(Planner):
         self.horizon = horizon
         self.num_random_action_selection = num_random_action_selection
         self.gamma_inverse = 1. / gamma
-        if cost_fn is None:
-            self.cost_fn = model.cost_fn
-        else:
-            self.cost_fn = cost_fn
 
     def predict(self, state):
         states = np.expand_dims(state, axis=0)
@@ -56,8 +51,8 @@ class BestRandomActionPlanner(Planner):
         with torch.no_grad():
             cost = torch.zeros(size=(self.num_random_action_selection,)).type(FloatTensor)
             for i in range(self.horizon):
-                next_states = self.model.predict_next_states(states, actions[i])
-                cost += self.cost_fn(states, actions[i], next_states) * self.gamma_inverse
+                next_states, rewards = self.model.predict_next_states_rewards(states, actions[i])
+                cost += -rewards * self.gamma_inverse
                 states = next_states
 
             best_action = actions[0, torch.argmin(cost, dim=0)]
@@ -80,16 +75,12 @@ class GradientDescentActionPlanner(Planner):
     Notes: only applicable to continuous action space. It also requires that cost_fn is differentiable.
     """
 
-    def __init__(self, model, action_sampler, cost_fn=None, horizon=15, num_iterations=100, gamma=0.95):
+    def __init__(self, model, action_sampler, horizon=15, num_iterations=100, gamma=0.95):
         super(GradientDescentActionPlanner, self).__init__(model=model)
         self.action_sampler = action_sampler
         self.horizon = horizon
         self.num_iterations = num_iterations
         self.gamma_inverse = 1. / gamma
-        if cost_fn is None:
-            self.cost_fn = model.cost_fn
-        else:
-            self.cost_fn = cost_fn
 
     def predict(self, state):
         """ The model must be in evaluation mode and turn off gradient update
@@ -110,8 +101,8 @@ class GradientDescentActionPlanner(Planner):
             current_state = convert_numpy_to_tensor(np.expand_dims(state, axis=0))
             for h in range(self.horizon):
                 current_action = action_module.forward(h)
-                next_states = self.model.predict_next_states(current_state, current_action)
-                cost.append(self.cost_fn(current_state, current_action, next_states) * self.gamma_inverse)
+                next_states, rewards = self.model.predict_next_states_rewards(current_state, current_action)
+                cost.append(-rewards * self.gamma_inverse)
                 current_state = next_states
             cost = torch.mean(torch.cat(cost))
             cost.backward()
@@ -126,16 +117,15 @@ class GradientDescentActionPlanner(Planner):
 
 
 class GameState(object):
-    def __init__(self, state, model: WorldModel, cost_fn, action_sampler: IntSampler, horizon):
+    def __init__(self, state, model: WorldModel, action_sampler: IntSampler, horizon):
         self.state = state
         self.model = model
-        self.cost_fn = cost_fn
         self.action_sampler = action_sampler
         self.horizon = horizon
 
     def play(self, action):
         next_state = self.model.predict_next_state(self.state, action)
-        return GameState(next_state, self.model, self.cost_fn, self.action_sampler, self.horizon - 1)
+        return GameState(next_state, self.model, self.action_sampler, self.horizon - 1)
 
     def simulate(self):
         """ Simulate from current node. The default agent is random agent.
@@ -149,20 +139,12 @@ class GameState(object):
 
         child_priors = [1.0 for _ in range(self.action_sampler.high)]
         state = self.state
-        states = []
-        actions = []
-        next_states = []
+        cost = []
         for _ in range(self.horizon):
             action = self.action_sampler.sample(shape=None)
-            states.append(state)
-            actions.append(action)
-            state = self.model.predict_next_state(state, action)
-            next_states.append(state)
+            state, reward = self.model.predict_next_state_reward(state, action)
+            cost.append(-reward)
 
-        states = np.array(states)
-        actions = np.array(actions)
-        next_states = np.array(next_states)
-        cost = self.cost_fn(states, actions, next_states)
         cost = np.sum(cost)
         return child_priors, -cost
 
@@ -229,7 +211,7 @@ def UCT_search(game_state: GameState, num_reads):
 
 
 class UCTPlanner(Planner):
-    def __init__(self, model, action_sampler: IntSampler, cost_fn=None, horizon=15, num_reads=1000):
+    def __init__(self, model, action_sampler: IntSampler, horizon=15, num_reads=1000):
         """ Upper bounded confidence Monte Carlo Tree Search (MCTS)
 
         Args:
@@ -241,15 +223,11 @@ class UCTPlanner(Planner):
         super(UCTPlanner, self).__init__(model=model)
         assert isinstance(action_sampler, IntSampler), 'Action sampler must be IntSampler for UCT Planner'
         self.action_sampler = action_sampler
-        if cost_fn is None:
-            self.cost_fn = model.cost_fn
-        else:
-            self.cost_fn = cost_fn
 
         self.horizon = horizon
         self.num_reads = num_reads
 
     def predict(self, state):
-        initial_state = GameState(state, self.model, self.cost_fn, self.action_sampler, horizon=self.horizon)
+        initial_state = GameState(state, self.model, self.action_sampler, horizon=self.horizon)
         action = UCT_search(initial_state, self.num_reads)[0]
         return action

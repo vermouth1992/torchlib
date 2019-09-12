@@ -15,9 +15,10 @@ from .utils import EpisodicDataset as Dataset
 
 
 class WorldModel(object):
-    def __init__(self, dynamics_model: nn.Module, optimizer):
+    def __init__(self, dynamics_model: nn.Module, optimizer, cost_fn_batch=None):
         self.dynamics_model = dynamics_model
         self.optimizer = optimizer
+        self.cost_fn_batch = cost_fn_batch
 
         if enable_cuda:
             self.dynamics_model.cuda()
@@ -41,20 +42,37 @@ class WorldModel(object):
             self.action_std = convert_numpy_to_tensor(dataset.action_std).unsqueeze(dim=0)
         self.delta_state_mean = convert_numpy_to_tensor(dataset.delta_state_mean).unsqueeze(dim=0)
         self.delta_state_std = convert_numpy_to_tensor(dataset.delta_state_std).unsqueeze(dim=0)
+        if self.cost_fn_batch is None:
+            self.reward_mean = convert_numpy_to_tensor(dataset.reward_mean).unsqueeze(dim=0)
+            self.reward_std = convert_numpy_to_tensor(dataset.reward_std).unsqueeze(dim=0)
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         raise NotImplementedError
 
+    @torch.no_grad()
     def predict_next_state(self, state, action):
         states = np.expand_dims(state, axis=0)
         actions = np.expand_dims(action, axis=0)
         states = convert_numpy_to_tensor(states)
         actions = convert_numpy_to_tensor(actions)
-        with torch.no_grad():
-            next_state = self.predict_next_states(states, actions).cpu().numpy()[0]
+        next_state = self.predict_next_states(states, actions).cpu().numpy()[0]
         return next_state
 
     def predict_next_states(self, states, actions):
+        raise NotImplementedError
+
+    @torch.no_grad()
+    def predict_next_state_reward(self, state, action):
+        states = np.expand_dims(state, axis=0)
+        actions = np.expand_dims(action, axis=0)
+        states = convert_numpy_to_tensor(states)
+        actions = convert_numpy_to_tensor(actions)
+        next_state, reward = self.predict_next_states_rewards(states, actions)
+        next_state = next_state.cpu().numpy()[0]
+        reward = reward.cpu().numpy()[0]
+        return next_state, reward
+
+    def predict_next_states_rewards(self, states, actions):
         raise NotImplementedError
 
     @property
@@ -70,8 +88,9 @@ class DeterministicWorldModel(WorldModel):
     deterministic model following equation s_{t+1} = s_{t} + f(s_{t}, a_{t})
     """
 
-    def __init__(self, dynamics_model: nn.Module, optimizer):
-        super(DeterministicWorldModel, self).__init__(dynamics_model=dynamics_model, optimizer=optimizer)
+    def __init__(self, dynamics_model: nn.Module, optimizer, cost_fn_batch):
+        super(DeterministicWorldModel, self).__init__(dynamics_model=dynamics_model, optimizer=optimizer,
+                                                      cost_fn_batch=cost_fn_batch)
         self.state_mean = None
         self.state_std = None
         self.action_mean = None
@@ -79,12 +98,13 @@ class DeterministicWorldModel(WorldModel):
         self.delta_state_mean = None
         self.delta_state_std = None
 
-    def predict_normalized_delta_next_state(self, states, actions):
+    def predict_normalized_delta_next_state_reward(self, states, actions):
         states_normalized = normalize(states, self.state_mean, self.state_std)
         if not self.dynamics_model.discrete:
             actions = normalize(actions, self.action_mean, self.action_std)
-        predicted_delta_state_normalized = self.dynamics_model.forward(states_normalized, actions)
-        return predicted_delta_state_normalized
+        predicted_delta_state_normalized, predicted_reward_normalized = self.dynamics_model.forward(states_normalized,
+                                                                                                    actions)
+        return predicted_delta_state_normalized, predicted_reward_normalized
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         t = range(epoch)
@@ -95,7 +115,7 @@ class DeterministicWorldModel(WorldModel):
 
         for i in t:
             losses = []
-            for states, actions, next_states, _, _ in train_data_loader:
+            for states, actions, next_states, rewards, _ in train_data_loader:
                 # convert to tensor
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)
@@ -103,9 +123,13 @@ class DeterministicWorldModel(WorldModel):
                 delta_states = next_states - states
                 # calculate loss
                 self.optimizer.zero_grad()
-                predicted_delta_state_normalized = self.predict_normalized_delta_next_state(states, actions)
+                predicted_delta_state_normalized, predicted_reward_normalized = \
+                    self.predict_normalized_delta_next_state_reward(states, actions)
                 delta_states_normalized = normalize(delta_states, self.delta_state_mean, self.delta_state_std)
                 loss = F.mse_loss(predicted_delta_state_normalized, delta_states_normalized)
+                if self.cost_fn_batch is None:
+                    rewards_normalized = normalize(rewards, self.reward_mean, self.reward_std)
+                    loss += F.mse_loss(predicted_reward_normalized, rewards_normalized)
                 loss.backward()
                 self.optimizer.step()
                 losses.append(loss.item())
@@ -113,15 +137,19 @@ class DeterministicWorldModel(WorldModel):
             self.eval()
             val_losses = []
             with torch.no_grad():
-                for states, actions, next_states, _, _ in val_data_loader:
+                for states, actions, next_states, rewards, _ in val_data_loader:
                     # convert to tensor
                     states = move_tensor_to_gpu(states)
                     actions = move_tensor_to_gpu(actions)
                     next_states = move_tensor_to_gpu(next_states)
                     delta_states = next_states - states
-                    predicted_delta_state_normalized = self.predict_normalized_delta_next_state(states, actions)
+                    predicted_delta_state_normalized, predicted_reward_normalized = \
+                        self.predict_normalized_delta_next_state_reward(states, actions)
                     delta_states_normalized = normalize(delta_states, self.delta_state_mean, self.delta_state_std)
                     loss = F.mse_loss(predicted_delta_state_normalized, delta_states_normalized)
+                    if self.cost_fn_batch is None:
+                        rewards_normalized = normalize(rewards, self.reward_mean, self.reward_std)
+                        loss += F.mse_loss(predicted_reward_normalized, rewards_normalized)
                     val_losses.append(loss.item())
             self.train()
 
@@ -131,15 +159,23 @@ class DeterministicWorldModel(WorldModel):
 
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
-        states_normalized = normalize(states, self.state_mean, self.state_std)
-
-        if not self.dynamics_model.discrete:
-            actions = normalize(actions, self.action_mean, self.action_std)
-
-        predicted_delta_state_normalized = self.dynamics_model.forward(states_normalized, actions)
+        predicted_delta_state_normalized, _ = self.predict_normalized_delta_next_state_reward(states, actions)
         predicted_delta_state = unnormalize(predicted_delta_state_normalized, self.delta_state_mean,
                                             self.delta_state_std)
         return states + predicted_delta_state
+
+    def predict_next_states_rewards(self, states, actions):
+        assert self.state_mean is not None, 'Please set statistics before training for inference.'
+        predicted_delta_state_normalized, predicted_reward_normalized = \
+            self.predict_normalized_delta_next_state_reward(states, actions)
+        predicted_delta_state = unnormalize(predicted_delta_state_normalized, self.delta_state_mean,
+                                            self.delta_state_std)
+        predicted_state = predicted_delta_state + states
+        if self.cost_fn_batch is None:
+            predicted_reward = unnormalize(predicted_reward_normalized, self.reward_mean, self.reward_std)
+        else:
+            predicted_reward = -self.cost_fn_batch(states, actions, predicted_state)
+        return predicted_state, predicted_reward
 
     def state_dict(self):
         states = {
