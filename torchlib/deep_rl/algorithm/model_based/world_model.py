@@ -43,8 +43,8 @@ class WorldModel(object):
         self.delta_state_mean = convert_numpy_to_tensor(dataset.delta_state_mean).unsqueeze(dim=0)
         self.delta_state_std = convert_numpy_to_tensor(dataset.delta_state_std).unsqueeze(dim=0)
         if self.cost_fn_batch is None:
-            self.reward_mean = convert_numpy_to_tensor(dataset.reward_mean).unsqueeze(dim=0)
-            self.reward_std = convert_numpy_to_tensor(dataset.reward_std).unsqueeze(dim=0)
+            self.reward_mean = dataset.reward_mean
+            self.reward_std = dataset.reward_std
 
     def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         raise NotImplementedError
@@ -116,6 +116,11 @@ class DeterministicWorldModel(WorldModel):
         for i in t:
             losses = []
             for states, actions, next_states, rewards, _ in train_data_loader:
+
+                # in training, we drop last batch to avoid batch size 1 that may crash batch_norm layer.
+                if states.shape[0] == 1:
+                    continue
+
                 # convert to tensor
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)

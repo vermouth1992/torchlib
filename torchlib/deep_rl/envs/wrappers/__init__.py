@@ -1,8 +1,11 @@
-from .atari_wrappers import wrap_deepmind_ram, wrap_deepmind
-from .flappy_bird_wrappers import wrap_flappybird
-from .model_based import model_based_wrapper_dict
-from .common import ClipActionWrapper, ObservationDTypeWrapper, ObservationActionWrapper
+import warnings
+
 import gym
+
+from .atari_wrappers import wrap_deepmind_ram, wrap_deepmind
+from .common import ClipActionWrapper, ObservationDTypeWrapper, ObservationActionWrapper
+from .flappy_bird_wrappers import wrap_flappybird
+from .model_based import model_based_wrapper_dict, NoCostModelBasedWrapper
 
 
 def get_wrapper_by_name(env, classname):
@@ -18,5 +21,6 @@ def get_wrapper_by_name(env, classname):
 
 def get_model_based_wrapper(env_name):
     if env_name not in model_based_wrapper_dict:
-        raise ValueError('No cost fn defined for {}'.format(env_name))
+        warnings.warn('No cost fn defined for {}'.format(env_name))
+        return NoCostModelBasedWrapper
     return model_based_wrapper_dict[env_name]

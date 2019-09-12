@@ -242,7 +242,7 @@ class EpisodicDataset(object):
             self._actions.append(np.ravel(action))
         else:
             self._actions.append(action)
-        self._rewards.append(np.ravel(reward))
+        self._rewards.append(reward)
 
         self.size += 1
 
@@ -250,7 +250,7 @@ class EpisodicDataset(object):
             self._states.append(next_state)
             self.memory.append(Transition(state=np.array(self._states),
                                           action=np.array(self._actions),
-                                          reward=np.array(self._rewards)))
+                                          reward=np.array(self._rewards, dtype=np.float32)))
             self._states = []
             self._actions = []
             self._rewards = []
@@ -307,9 +307,8 @@ class EpisodicDataset(object):
         train_tuple = output_tuple[0::2]
         val_tuple = output_tuple[1::2]
 
-        # in training, we drop last batch to avoid batch size 1 that may crash batch_norm layer.
         train_data_loader = create_data_loader(train_tuple, batch_size=batch_size, shuffle=True,
-                                               drop_last=True)
+                                               drop_last=False)
         val_data_loader = create_data_loader(val_tuple, batch_size=batch_size, shuffle=False,
                                              drop_last=False)
 

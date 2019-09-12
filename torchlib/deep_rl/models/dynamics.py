@@ -23,7 +23,7 @@ class ContinuousMLPDynamics(nn.Module):
         state_action_input = torch.cat((states, actions), dim=-1)
         feature = self.model(state_action_input)
         next_states = self.state_head.forward(feature)
-        rewards = self.reward_head.forward(feature).unsqueeze(dim=-1)
+        rewards = self.reward_head.forward(feature).squeeze(dim=-1)
         return next_states, rewards
 
 

@@ -11,6 +11,13 @@ import torch
 from torchlib.common import LongTensor, FloatTensor
 
 
+class NoCostModelBasedWrapper(gym.Wrapper):
+    cost_fn = None
+    cost_fn_batch = None
+    cost_fn_numpy_batch = None
+    cost_fn_torch_batch = None
+
+
 class ModelBasedWrapper(gym.Wrapper):
     def cost_fn_numpy_batch(self, states, actions, next_states):
         raise NotImplementedError
