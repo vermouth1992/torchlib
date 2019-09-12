@@ -125,6 +125,7 @@ class DeterministicWorldModel(WorldModel):
                 states = move_tensor_to_gpu(states)
                 actions = move_tensor_to_gpu(actions)
                 next_states = move_tensor_to_gpu(next_states)
+                rewards = move_tensor_to_gpu(rewards)
                 delta_states = next_states - states
                 # calculate loss
                 self.optimizer.zero_grad()
@@ -147,6 +148,7 @@ class DeterministicWorldModel(WorldModel):
                     states = move_tensor_to_gpu(states)
                     actions = move_tensor_to_gpu(actions)
                     next_states = move_tensor_to_gpu(next_states)
+                    rewards = move_tensor_to_gpu(rewards)
                     delta_states = next_states - states
                     predicted_delta_state_normalized, predicted_reward_normalized = \
                         self.predict_normalized_delta_next_state_reward(states, actions)
