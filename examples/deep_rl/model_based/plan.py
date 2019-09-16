@@ -13,7 +13,7 @@ def make_parser():
     parser.add_argument('--num_actions', type=int, default=4096)
     parser.add_argument('--num_iter', type=int, default=100)
     parser.add_argument('--num_init_random_rollouts', type=int, default=10)
-    parser.add_argument('--max_rollout_length', type=int, default=500)
+    parser.add_argument('--max_rollout_length', type=int, default=1000)
     parser.add_argument('--num_on_policy_iters', type=int, default=10)
     parser.add_argument('--num_on_policy_rollouts', type=int, default=10)
     parser.add_argument('--training_epochs', type=int, default=60)
@@ -22,6 +22,7 @@ def make_parser():
     parser.add_argument('--planner', type=str, choices=['random', 'uct', 'gradient'], default='random')
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--dagger', action='store_true')
+    parser.add_argument('--fit_reward', action='store_true')
     return parser
 
 
@@ -71,6 +72,9 @@ if __name__ == '__main__':
             policy = deep_rl.algorithm.model_based.policy.ContinuousImitationPolicy(actor, actor_optimizer)
 
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
+
+    if args['fit_reward']:
+        env.cost_fn_batch = None
 
     model = deep_rl.algorithm.model_based.DeterministicWorldModel(dynamics_model=dynamics_model, optimizer=optimizer,
                                                                   cost_fn_batch=env.cost_fn_batch)
