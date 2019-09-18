@@ -7,6 +7,9 @@ The steps are:
 2. Fine-tune by using on policy data.
 """
 
+import datetime
+import time
+
 import torch
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
@@ -81,6 +84,8 @@ class ModelBasedAgent(BaseAgent):
 
         """
 
+        start_time = time.time()
+
         # collect dataset using random policy
         single_env = env_fn() if env is None else env
 
@@ -110,6 +115,7 @@ class ModelBasedAgent(BaseAgent):
             on_policy_dataset = gather_rollouts(env_fn, env, self, num_on_policy_rollouts, max_rollout_length)
 
             # record on policy dataset statistics
+
             if verbose:
                 stats = on_policy_dataset.log()
                 strings = []
@@ -119,6 +125,9 @@ class ModelBasedAgent(BaseAgent):
                 print(strings)
 
             dataset.append(on_policy_dataset)
+
+            time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
+            print('Time elapsed {}'.format(time_elapse))
 
         if checkpoint_path:
             self.save_checkpoint(checkpoint_path)
