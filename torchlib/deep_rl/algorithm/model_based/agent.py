@@ -8,7 +8,6 @@ The steps are:
 """
 
 import torch
-from gym import Env
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
 
@@ -49,10 +48,10 @@ class ModelBasedAgent(BaseAgent):
     def fit_policy(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
         raise NotImplementedError
 
-    def train(self, env: Env,
+    def train(self, env_fn, env=None,
               dataset_maxlen=10000,
               num_init_random_rollouts=10,
-              max_rollout_length=500,
+              max_rollout_length=1000,
               num_on_policy_iters=10,
               num_on_policy_rollouts=10,
               model_training_epochs=60,
@@ -61,17 +60,40 @@ class ModelBasedAgent(BaseAgent):
               default_policy=None,
               verbose=True,
               checkpoint_path=None):
+        """ Train model-based rl agent
+
+        Args:
+            env_fn: env fn for create parallel env
+            env: a single env object. If not None, disable parallel env. Useful for env with memory.
+            dataset_maxlen: data set size
+            num_init_random_rollouts: Number of initial rollouts
+            max_rollout_length: maximum rollout length
+            num_on_policy_iters: Number of on-policy iterations
+            num_on_policy_rollouts: Number of on-policy rollouts per iteration
+            model_training_epochs: Model training epochs
+            policy_training_epochs: policy training epochs
+            training_batch_size: batch size
+            default_policy: default policy to collect initial dataset
+            verbose:
+            checkpoint_path:
+
+        Returns: None
+
+        """
+
         # collect dataset using random policy
+        single_env = env_fn() if env is None else env
+
         if default_policy is None:
-            default_policy = RandomAgent(env.action_space)
+            default_policy = RandomAgent(single_env.action_space)
         dataset = Dataset(maxlen=dataset_maxlen)
 
         print('Gathering initial dataset...')
 
         if max_rollout_length <= 0:
-            max_rollout_length = env.spec.max_episode_steps
+            max_rollout_length = single_env.spec.max_episode_steps
 
-        initial_dataset = gather_rollouts(env, default_policy, num_init_random_rollouts, max_rollout_length)
+        initial_dataset = gather_rollouts(env_fn, env, default_policy, num_init_random_rollouts, max_rollout_length)
         dataset.append(initial_dataset)
 
         # gather new rollouts using MPC and retrain dynamics model
@@ -85,7 +107,7 @@ class ModelBasedAgent(BaseAgent):
                                    verbose=verbose)
             self.fit_policy(dataset=dataset, epoch=policy_training_epochs, batch_size=training_batch_size,
                             verbose=verbose)
-            on_policy_dataset = gather_rollouts(env, self, num_on_policy_rollouts, max_rollout_length)
+            on_policy_dataset = gather_rollouts(env_fn, env, self, num_on_policy_rollouts, max_rollout_length)
 
             # record on policy dataset statistics
             if verbose:

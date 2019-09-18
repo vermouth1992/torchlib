@@ -23,6 +23,7 @@ def make_parser():
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--dagger', action='store_true')
     parser.add_argument('--fit_reward', action='store_true')
+    parser.add_argument('--single_process', action='store_true')
     return parser
 
 
@@ -41,8 +42,11 @@ if __name__ == '__main__':
     from torchlib import deep_rl
     from torchlib.utils.random.sampler import UniformSampler, IntSampler
 
-    env = deep_rl.envs.make_env(args['env_name'], args)
-    env = deep_rl.envs.wrappers.get_model_based_wrapper(args['env_name'])(env)
+    model_based_wrapper = deep_rl.envs.wrappers.get_model_based_wrapper(args['env_name'])
+
+    env_fn = lambda: model_based_wrapper(deep_rl.envs.make_env(args['env_name'], args))
+
+    env = env_fn()
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
 
@@ -106,7 +110,9 @@ if __name__ == '__main__':
     else:
         agent = deep_rl.algorithm.model_based.agent.ModelBasedPlanAgent(model=model, planner=planner)
 
-    agent.train(env=env,
+    single_env = env if args['single_process'] else None
+
+    agent.train(env_fn=env_fn, env=single_env,
                 dataset_maxlen=args['dataset_maxlen'],
                 num_init_random_rollouts=args['num_init_random_rollouts'],
                 max_rollout_length=args['max_rollout_length'],

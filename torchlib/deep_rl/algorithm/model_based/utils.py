@@ -379,33 +379,65 @@ class StateActionPairDataset(object):
         return train_data_loader, val_data_loader
 
 
-def gather_rollouts(env, policy: BaseAgent, num_rollouts, max_rollout_length) -> EpisodicDataset:
+from multiprocessing import Queue, Process
+
+
+def gather_rollout(env, policy, max_rollout_length) -> EpisodicDataset:
     dataset = EpisodicDataset()
+    state = env.reset()
+    done = False
+    t = 0
+    while not done:
+        t += 1
 
-    for _ in range(num_rollouts):
-        state = env.reset()
-        done = False
-        t = 0
-        while not done:
-            t += 1
+        if state.dtype == np.float:
+            state = state.astype(np.float32)
 
-            if state.dtype == np.float:
-                state = state.astype(np.float32)
+        action = policy.predict(state)
 
-            action = policy.predict(state)
+        if isinstance(action, np.ndarray) and action.dtype == np.float:
+            action = action.astype(np.float32)
 
-            if isinstance(action, np.ndarray) and action.dtype == np.float:
-                action = action.astype(np.float32)
+        next_state, reward, done, _ = env.step(action)
 
-            next_state, reward, done, _ = env.step(action)
+        if next_state.dtype == np.float:
+            next_state = next_state.astype(np.float32)
 
-            if next_state.dtype == np.float:
-                next_state = next_state.astype(np.float32)
+        done = done or (t >= max_rollout_length)
 
-            done = done or (t >= max_rollout_length)
+        dataset.add(state, action, next_state, reward, done)
 
-            dataset.add(state, action, next_state, reward, done)
+        state = next_state
 
-            state = next_state
+    return dataset
+
+
+def gather_rollout_process(env_fn, policy, max_rollout_length, q: Queue, i):
+    # print('Process {} collecting rollout.'.format(i))
+    dataset = gather_rollout(env_fn(), policy, max_rollout_length)
+    q.put(dataset)
+
+
+def gather_rollouts(env_fn, env, policy: BaseAgent, num_rollouts, max_rollout_length) -> EpisodicDataset:
+    dataset = EpisodicDataset()
+    if env is not None:
+        for _ in range(num_rollouts):
+            dataset.append(gather_rollout(env, policy, max_rollout_length))
+
+    else:
+        process = []
+        q = Queue()
+
+        # create num_rollouts process to collect data
+        for i in range(num_rollouts):
+            p = Process(target=gather_rollout_process, args=(env_fn, policy, max_rollout_length, q, i))
+            p.start()
+            process.append(p)
+
+        for p in process:
+            p.join()
+
+        while not q.empty():
+            dataset.append(q.get())
 
     return dataset
