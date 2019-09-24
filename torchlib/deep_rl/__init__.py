@@ -87,7 +87,7 @@ def test(env: gym.Env, agent: BaseAgent, num_episode=100, frame_history_len=1, r
         while not done:
             if render:
                 env.render()
-            action = agent.predict(np.concatenate(observation_lst, axis=-1))
+            action = agent.predict(np.concatenate(observation_lst, axis=-1).astype(np.float32))
             previous_observation, reward, done, _ = env.step(action)
             episode_reward += reward
             observation_lst.pop(0)

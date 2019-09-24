@@ -6,9 +6,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchlib import deep_rl
-from torchlib.common import move_tensor_to_gpu, enable_cuda
+from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_numpy_to_tensor
 from torchlib.dataset.utils import create_data_loader
 from torchlib.utils.logx import EpochLogger
+
 
 from .utils import PPOReplayBuffer, PPOSampler
 
@@ -46,8 +47,9 @@ class Agent(deep_rl.BaseAgent):
 
     @torch.no_grad()
     def predict_batch(self, states):
+        states = convert_numpy_to_tensor(states)
         action_distribution = self.policy_net.forward_action(states)
-        return action_distribution.sample()
+        return action_distribution.sample().cpu().numpy()
 
     @torch.no_grad()
     def predict_log_prob_batch(self, state, action):
@@ -73,7 +75,7 @@ class Agent(deep_rl.BaseAgent):
         data_loader = create_data_loader((state,), batch_size=32, shuffle=False, drop_last=False)
         values = []
         for obs in data_loader:
-            obs = move_tensor_to_gpu(obs)
+            obs = move_tensor_to_gpu(obs[0])
             values.append(self.policy_net.forward_value(obs))
         values = torch.cat(values, dim=0).cpu().numpy()
         return values
@@ -141,7 +143,6 @@ class Agent(deep_rl.BaseAgent):
         replay_buffer = PPOReplayBuffer(gamma=gamma, lam=self.lam, policy=self)
         sampler.initialize(env=env, policy=self, pool=replay_buffer)
 
-        # Set random seeds
         env.seed(seed)
 
         # initialize training progress
@@ -170,7 +171,8 @@ class Agent(deep_rl.BaseAgent):
             logger.log_tabular('Epoch (Total {})'.format(num_epoch), itr + 1)
             logger.log_tabular('Time Elapsed', time_elapse)
             logger.log_tabular('EpReward', with_min_and_max=True)
-            logger.log_tabular('EpLength', average_only=True)
+            logger.log_tabular('EpLength', average_only=True, with_min_and_max=True)
             logger.log_tabular('TotalSteps', total_timesteps)
             logger.log_tabular('ValueRunningMean', replay_buffer.running_value_mean)
             logger.log_tabular('ValueRunningStd', replay_buffer.running_value_std)
+            logger.dump_tabular()

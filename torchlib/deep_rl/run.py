@@ -14,6 +14,7 @@ import pprint
 
 import torchlib.deep_rl.algorithm as rl_algo
 from torchlib import deep_rl
+from torchlib.utils.random import set_global_seeds
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Running rl algorithms')
@@ -22,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_envs', type=int, default=1)
     parser.add_argument('--frame_length', type=int, default=None)
     parser.add_argument('--test', action='store_true')
+    parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', type=int, default=1992)
     parser.add_argument('--logdir', type=str, default=None)
     parser.add_argument('--checkpoint_path', type=str, default=None)
@@ -37,16 +39,22 @@ if __name__ == '__main__':
                                       num_envs=None,
                                       frame_length=kwargs['frame_length'])
 
+    # Set random seeds
+    set_global_seeds(kwargs['seed'])
+
     if kwargs['algo'] == 'ppo':
         policy_net = rl_algo.ppo.get_nets(dummy_env, kwargs)
         agent = rl_algo.ppo.Agent(policy_net=policy_net, **kwargs)
     else:
         raise NotImplementedError
 
-    del dummy_env
     env = deep_rl.envs.make_env(env_name=kwargs['env_name'],
                                 num_envs=kwargs['num_envs'],
                                 frame_length=kwargs['frame_length'])
 
     if not kwargs['test']:
+        del dummy_env
         agent.train(env=env, **kwargs)
+    else:
+        agent.load_checkpoint(kwargs['checkpoint_path'])
+        deep_rl.test(dummy_env, agent, num_episode=100, render=kwargs['render'])

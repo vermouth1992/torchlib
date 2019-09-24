@@ -29,6 +29,7 @@ class PPOReplayBuffer(ReplayBuffer):
         self.alpha = 0.8
 
     def clear(self):
+        self._size = 0
         self.memory.clear()
 
     def _finish_trajectory(self, states, actions, rewards, last_value):
@@ -68,7 +69,7 @@ class PPOReplayBuffer(ReplayBuffer):
         """
         reward_to_go, gae, old_log_prob = self._finish_trajectory(states, actions, rewards, last_value)
         self.memory.append(Trajectory(
-            state=states[:-1],
+            state=states,
             action=actions,
             reward_to_go=reward_to_go,
             advantage=gae,
@@ -126,7 +127,7 @@ class PPOSampler(Sampler):
 
         policy = self.policy if policy is None else policy
         obs = self.env.reset()
-        for _ in range(self.min_steps_per_batch // obs.shape[0] + 1):
+        for _ in range(self.min_steps_per_batch // obs.shape[0]):
             action = policy.predict_batch(obs)
             obs_lst.append(obs)
             action_lst.append(action)
@@ -149,7 +150,7 @@ class PPOSampler(Sampler):
         # separate trajectories and add to pool
         for i in range(self.env.num_envs):
             done_index = np.where(done_lst[i])[0] + 1
-            if done_lst[i][-1] is True:
+            if done_lst[i][-1] == True:
                 done_index = done_index[:-1]  # ignore the last one
                 last_value = 0.
             else:
@@ -161,13 +162,16 @@ class PPOSampler(Sampler):
             sub_last_value_lst = [0.] * (len(sub_obs_lst) - 1) + [last_value]
 
             for j in range(len(sub_obs_lst)):
+                if (sub_obs_lst[j].shape[0] == 0):
+                    print(done_index, done_lst[i])
+
                 self.pool.add_trajectory(states=sub_obs_lst[j],
                                          actions=sub_action_lst[j],
                                          rewards=sub_reward_lst[j],
                                          last_value=sub_last_value_lst[j])
                 if self.logger:
-                    self.logger.store('EpReward', np.sum(sub_reward_lst[j]) + sub_last_value_lst[j])
-                    self.logger.store('EpLength', len(sub_obs_lst))
+                    self.logger.store(EpReward=np.sum(sub_reward_lst[j]) + sub_last_value_lst[j])
+                    self.logger.store(EpLength=sub_obs_lst[j].shape[0])
 
 
 def discount(x, gamma):
