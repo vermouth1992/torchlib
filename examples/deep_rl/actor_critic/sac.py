@@ -3,7 +3,6 @@ import pprint
 import gym
 import numpy as np
 import torch.optim
-
 import torchlib.deep_rl as deep_rl
 import torchlib.deep_rl.algorithm as algo
 from torchlib.common import device
@@ -38,7 +37,7 @@ if __name__ == '__main__':
 
     if automatic_entropy_tuning:
         if isinstance(env.action_space, gym.spaces.Discrete):
-            target_entropy = -env.action_space.n
+            target_entropy = -np.log(env.action_space.n) * 0.95
         else:
             target_entropy = -np.prod(env.action_space.shape)
         log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)

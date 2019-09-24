@@ -12,12 +12,12 @@ import torch.distributions
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-from tqdm.auto import tqdm
-
 from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random import set_global_seeds
 from torchlib.utils.weight import soft_update, hard_update
+from tqdm.auto import tqdm
+
 from .utils import SimpleSampler, SimpleReplayPool
 
 
@@ -86,7 +86,9 @@ class SoftActorCritic(BaseAgent):
         with torch.no_grad():
             next_action_distribution = self.policy_net.forward(next_obs)
             next_action = next_action_distribution.sample()
-            target_q_values = self.target_q_network.forward(next_obs, next_action, True)
+            next_action_log_prob = next_action_distribution.log_prob(next_action)
+            target_q_values = self.target_q_network.forward(next_obs, next_action,
+                                                            True) - self._alpha * next_action_log_prob
             q_target = reward + self._discount * (1.0 - done) * target_q_values
 
         q_values_loss = F.mse_loss(q_values, q_target) + F.mse_loss(q_values2, q_target)
@@ -99,9 +101,7 @@ class SoftActorCritic(BaseAgent):
             probs = F.softmax(q_values_min, dim=-1)
             target_distribution = torch.distributions.Categorical(probs=probs)
             policy_loss = torch.distributions.kl_divergence(action_distribution, target_distribution).mean()
-
-            pi = action_distribution.sample()
-            log_prob = action_distribution.log_prob(pi)
+            log_prob = -action_distribution.entropy()
 
         else:
             action_distribution = self.policy_net.forward(obs)

@@ -3,6 +3,7 @@ Define a bunch of new environments to fast deep RL algorithm verifying
 """
 
 from torchlib import deep_rl
+
 from .cartpole_continuous import CartPoleEnvContinuous
 from .pendulum import PendulumEnvNormalized
 
@@ -59,40 +60,46 @@ def is_ple_game(env_name):
 from . import wrappers
 
 
-def make_env(env_name, args):
+def make_env(env_name, num_envs=None, frame_length=None):
     """ A naive make_env to cover currently used environments
 
     Args:
         env_name: name of the environment
-        args: argument passed in
+        num_envs: number of envs. If None, use single env. Otherwise, use vector env
+        frame_length: only use for Atari and FlappyBird env
 
-    Returns:
+    Returns: env
 
     """
 
     import gym
     if env_name.startswith('Roboschool'):
         import roboschool
-
         __all__.append('roboschool')
 
     if env_name == 'FlappyBird-v0':
         import gym_ple
+        __all__.append('gym_ple')
         from torchlib.deep_rl.envs.wrappers import wrap_flappybird
 
-        wrapper = wrap_flappybird
-        env = gym_ple.make(env_name)
-        env = wrapper(env, frame_length=args['frame_history_len'])
+        wrapper = lambda env: wrap_flappybird(env=env, frame_length=frame_length)
 
     elif is_atari_env(env_name):
-        env = gym.make(env_name)
         if 'ram' in env_name.split('-'):
             from .wrappers import wrap_deepmind_ram as wrapper
         else:
             from .wrappers import wrap_deepmind as wrapper
-        env = wrapper(env, frame_length=args['frame_history_len'])
+        wrapper = lambda env: wrapper(env=env, frame_length=frame_length)
 
     else:
-        env = gym.make(env_name)
+        wrapper = None
+
+    if num_envs is None:
+        if wrapper is None:
+            env = gym.make(env_name)
+        else:
+            env = wrapper(gym.make(env_name))
+    else:
+        env = gym.vector.make(env_name, num_envs=num_envs, wrappers=wrapper)
 
     return env

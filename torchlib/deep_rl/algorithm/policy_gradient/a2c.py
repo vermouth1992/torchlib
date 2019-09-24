@@ -20,8 +20,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
 from torchlib.deep_rl import BaseAgent
-from .utils import compute_reward_to_go_gae
-from .utils import sample_trajectories, pathlength
+# from torchlib.deep_rl.algorithm.ppo.utils import compute_reward_to_go_gae
+# from torchlib.deep_rl.algorithm.ppo.utils import sample_trajectories, pathlength
 
 
 class A2CAgent(BaseAgent):
@@ -308,7 +308,7 @@ def get_policy_net(env, args):
     recurrent = args['recurrent']
     hidden_size = args['hidden_size']
 
-    from torchlib.deep_rl.models.policy import NormalNNPolicy, CategoricalNNPolicy, BetaNNPolicy
+    from torchlib.deep_rl.models.policy import CategoricalNNPolicy, BetaNNPolicy
     from torchlib.deep_rl.envs import is_atari_env, is_ple_game
 
     if len(env.observation_space.shape) == 1:

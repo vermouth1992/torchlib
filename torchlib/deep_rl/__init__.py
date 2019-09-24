@@ -28,6 +28,9 @@ register(
 
 class BaseAgent(object):
     def predict(self, state):
+        return self.predict_batch(np.expand_dims(state, axis=0))[0]
+
+    def predict_batch(self, states):
         raise NotImplementedError
 
     def reset(self):
@@ -52,9 +55,14 @@ class BaseAgent(object):
 
 class RandomAgent(BaseAgent):
     def __init__(self, action_space: Space):
+        """
+
+        Args:
+            action_space: Must be batch action space
+        """
         self.action_space = action_space
 
-    def predict(self, state):
+    def predict_batch(self, states):
         return self.action_space.sample()
 
 

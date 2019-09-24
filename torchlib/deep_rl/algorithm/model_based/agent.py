@@ -11,6 +11,7 @@ import datetime
 import time
 
 import torch
+import torchlib.deep_rl.algorithm.ppo as ppo
 from torchlib.common import map_location
 from torchlib.deep_rl import BaseAgent, RandomAgent
 
@@ -19,7 +20,6 @@ from .planner import Planner
 from .policy import ImitationPolicy
 from .utils import EpisodicDataset as Dataset, StateActionPairDataset, gather_rollouts
 from .world_model import WorldModel
-from ..policy_gradient import ppo
 
 
 class ModelBasedAgent(BaseAgent):
@@ -210,7 +210,7 @@ class ModelBasedPPOAgent(ModelBasedAgent):
     Train model using real world interactions and update policy using PPO in simulated environments.
     """
 
-    def __init__(self, model, ppo_agent: ppo.PPOAgent, real_env, **kwargs):
+    def __init__(self, model, ppo_agent: ppo.Agent, real_env, **kwargs):
         super(ModelBasedPPOAgent, self).__init__(model=model)
         self.policy = ppo_agent
         self.virtual_env = VirtualEnv(model, real_env)

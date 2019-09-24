@@ -16,18 +16,11 @@ from torchlib.utils.distributions import IndependentTanhNormal, IndependentNorma
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
-class BasePolicy(nn.Module):
-    def __init__(self, recurrent, hidden_size):
-        super(BasePolicy, self).__init__()
-        self.recurrent = recurrent
+class BaseStochasticPolicy(nn.Module):
+    def __init__(self, **kwargs):
+        super(BaseStochasticPolicy, self).__init__()
         self.model = self._create_feature_extractor()
         feature_output_size = self._calculate_feature_output_size()
-        if self.recurrent:
-            self.gru = nn.GRU(feature_output_size, hidden_size, batch_first=False)
-
-        if recurrent:
-            feature_output_size = hidden_size
-
         self.value_head = nn.Linear(feature_output_size, 1)
         self.action_head = self._create_action_head(feature_output_size)
 
@@ -40,7 +33,17 @@ class BasePolicy(nn.Module):
     def _create_action_head(self, feature_output_size):
         raise NotImplementedError
 
-    def forward(self, state, hidden):
+    def forward_action(self, state):
+        x = self.model.forward(state)  # shape (T, feature_size)
+        action = self.action_head.forward(x)
+        return action
+
+    def forward_value(self, state):
+        x = self.model.forward(state)  # shape (T, feature_size)
+        value = self.value_head.forward(x)
+        return value
+
+    def forward(self, state):
         """ This method can serve as two cases
         if state.shape[0] == hidden.shape[0], then we treat state and hidden as batch input with timestamp=1
         else we treat state as consecutive T timestamp and hidden as initial hidden state.
@@ -53,21 +56,13 @@ class BasePolicy(nn.Module):
 
         """
         x = self.model.forward(state)  # shape (T, feature_size)
-        if self.recurrent:
-            if state.shape[0] == hidden.shape[0]:
-                axis = 0  # expand on seq_length
-            else:
-                axis = 1  # expand on batch_size
-            x, hidden = self.gru.forward(x.unsqueeze(axis), hidden.unsqueeze(axis))  # assume batch size is 1
-            x = x.squeeze(axis)
-            hidden = hidden.squeeze(1)
         action = self.action_head.forward(x)
         value = self.value_head.forward(x)
-        return action, hidden, value.squeeze(-1)
+        return action, value.squeeze(-1)
 
 
 """
-Simple Policy for low dimensional state and action
+Various Action Head
 """
 
 
@@ -133,7 +128,12 @@ class _CategoricalActionHead(nn.Module):
         return Categorical(probs=probs)
 
 
-class _NormalPolicy(BasePolicy):
+"""
+Simple Policy for low dimensional state and action
+"""
+
+
+class _NormalPolicy(BaseStochasticPolicy):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_NormalPolicy, self).__init__(**kwargs)
@@ -143,7 +143,7 @@ class _NormalPolicy(BasePolicy):
         return action_header
 
 
-class _TanhNormalPolicy(BasePolicy):
+class _TanhNormalPolicy(BaseStochasticPolicy):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_TanhNormalPolicy, self).__init__(**kwargs)
@@ -153,7 +153,7 @@ class _TanhNormalPolicy(BasePolicy):
         return action_header
 
 
-class _BetaPolicy(BasePolicy):
+class _BetaPolicy(BaseStochasticPolicy):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_BetaPolicy, self).__init__(**kwargs)
@@ -163,7 +163,7 @@ class _BetaPolicy(BasePolicy):
         return action_header
 
 
-class _CategoricalPolicy(BasePolicy):
+class _CategoricalPolicy(BaseStochasticPolicy):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_CategoricalPolicy, self).__init__(**kwargs)
@@ -173,7 +173,7 @@ class _CategoricalPolicy(BasePolicy):
         return action_header
 
 
-class _NNPolicy(BasePolicy):
+class _NNPolicy(BaseStochasticPolicy):
     def __init__(self, nn_size, state_dim, **kwargs):
         self.nn_size = nn_size
         self.state_dim = state_dim
@@ -194,7 +194,7 @@ class _NNPolicy(BasePolicy):
         return model
 
 
-class _AtariCNNPolicy(BasePolicy):
+class _AtariCNNPolicy(BaseStochasticPolicy):
     def __init__(self, num_channel, **kwargs):
         self.num_channel = num_channel
         super(_AtariCNNPolicy, self).__init__(**kwargs)
@@ -214,90 +214,34 @@ class _AtariCNNPolicy(BasePolicy):
 
 
 class NormalNNPolicy(_NNPolicy, _NormalPolicy):
-    def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
-        super(NormalNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
-                                             nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-
-class NormalNNFeedForwardPolicy(NormalNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
-        super(NormalNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
-                                                        nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-    def forward(self, state, hidden=None):
-        out = super(NormalNNFeedForwardPolicy, self).forward(state=state, hidden=None)
-        return out[0]
+        super(NormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
 class TanhNormalNNPolicy(_NNPolicy, _TanhNormalPolicy):
-    def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
-        super(TanhNormalNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
-                                                 nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-
-class TanhNormalNNFeedForwardPolicy(TanhNormalNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
-        super(TanhNormalNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
-                                                            nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-    def forward(self, state, hidden=None):
-        out = super(TanhNormalNNFeedForwardPolicy, self).forward(state=state, hidden=None)
-        return out[0]
+        super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
 class BetaNNPolicy(_NNPolicy, _BetaPolicy):
-    def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
-        super(BetaNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
-                                           nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-
-class BetaNNFeedForwardPolicy(BetaNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
-        super(BetaNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
-                                                      nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-    def forward(self, state, hidden=None):
-        out = super(BetaNNFeedForwardPolicy, self).forward(state=state, hidden=None)
-        return out[0]
+        super(BetaNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
 class CategoricalNNPolicy(_NNPolicy, _CategoricalPolicy):
-    def __init__(self, recurrent, hidden_size, nn_size, state_dim, action_dim):
-        super(CategoricalNNPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size,
-                                                  nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
-
-
-class CategoricalNNFeedForwardPolicy(CategoricalNNPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
-        super(CategoricalNNFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
-                                                             nn_size=nn_size, state_dim=state_dim,
-                                                             action_dim=action_dim)
-
-    def forward(self, state, hidden=None):
-        out = super(CategoricalNNFeedForwardPolicy, self).forward(state=state, hidden=None)
-        return out[0]
+        super(CategoricalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
 class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
-    def __init__(self, recurrent, hidden_size, num_channel, action_dim):
-        super(AtariPolicy, self).__init__(recurrent=recurrent, hidden_size=hidden_size, num_channel=num_channel,
-                                          action_dim=action_dim)
+    def __init__(self, num_channel, action_dim):
+        super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim)
 
-    def forward(self, state, hidden):
+    def forward(self, state):
         state = state.type(FloatTensor)
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
-        return super(AtariPolicy, self).forward(state, hidden)
-
-
-class AtariFeedForwardPolicy(AtariPolicy):
-    def __init__(self, num_channel, action_dim):
-        super(AtariFeedForwardPolicy, self).__init__(recurrent=False, hidden_size=None,
-                                                     num_channel=num_channel, action_dim=action_dim)
-
-    def forward(self, state, hidden=None):
-        out = super(AtariFeedForwardPolicy, self).forward(state=state, hidden=None)
-        return out[0]
+        return super(AtariPolicy, self).forward(state)
 
 
 """
