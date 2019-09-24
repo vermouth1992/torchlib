@@ -7,11 +7,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchlib.common import enable_cuda, move_tensor_to_gpu, convert_numpy_to_tensor, FloatTensor
+from torchlib.deep_rl.utils.replay.replay import ReplayBuffer
 from torchlib.utils.layers import freeze, unfreeze
 from torchlib.utils.math import normalize, unnormalize
 from tqdm import tqdm
-
-from .utils import EpisodicDataset as Dataset
 
 
 class WorldModel(object):
@@ -31,22 +30,26 @@ class WorldModel(object):
         freeze(self.dynamics_model)
         self.dynamics_model.eval()
 
-    def set_statistics(self, dataset):
-        self.state_mean = convert_numpy_to_tensor(dataset.state_mean).unsqueeze(dim=0)
-        self.state_std = convert_numpy_to_tensor(dataset.state_std).unsqueeze(dim=0)
+    def set_statistics(self, dataset: ReplayBuffer):
+        state_mean, state_std = dataset.state_mean_std
+        self.state_mean = convert_numpy_to_tensor(state_mean).unsqueeze(dim=0)
+        self.state_std = convert_numpy_to_tensor(state_std).unsqueeze(dim=0)
         if self.dynamics_model.discrete:
             self.action_mean = None
             self.action_std = None
         else:
-            self.action_mean = convert_numpy_to_tensor(dataset.action_mean).unsqueeze(dim=0)
-            self.action_std = convert_numpy_to_tensor(dataset.action_std).unsqueeze(dim=0)
-        self.delta_state_mean = convert_numpy_to_tensor(dataset.delta_state_mean).unsqueeze(dim=0)
-        self.delta_state_std = convert_numpy_to_tensor(dataset.delta_state_std).unsqueeze(dim=0)
+            action_mean, action_std = dataset.action_mean_std
+            self.action_mean = convert_numpy_to_tensor(action_mean).unsqueeze(dim=0)
+            self.action_std = convert_numpy_to_tensor(action_std).unsqueeze(dim=0)
+        delta_state_mean, delta_state_std = dataset.delta_state_mean_std
+        self.delta_state_mean = convert_numpy_to_tensor(delta_state_mean).unsqueeze(dim=0)
+        self.delta_state_std = convert_numpy_to_tensor(delta_state_std).unsqueeze(dim=0)
         if self.cost_fn_batch is None:
-            self.reward_mean = dataset.reward_mean
-            self.reward_std = dataset.reward_std
+            reward_mean, reward_std = dataset.reward_mean_std
+            self.reward_mean = reward_mean
+            self.reward_std = reward_std
 
-    def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+    def fit_dynamic_model(self, dataset, epoch=10, batch_size=128, logger=None):
         raise NotImplementedError
 
     @torch.no_grad()
@@ -106,10 +109,8 @@ class DeterministicWorldModel(WorldModel):
                                                                                                     actions)
         return predicted_delta_state_normalized, predicted_reward_normalized
 
-    def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
-        t = range(epoch)
-        if verbose:
-            t = tqdm(t)
+    def fit_dynamic_model(self, dataset, epoch=10, batch_size=128, logger=None):
+        t = tqdm(range(epoch))
 
         train_data_loader, val_data_loader = dataset.random_iterator(batch_size=batch_size)
 
@@ -160,9 +161,12 @@ class DeterministicWorldModel(WorldModel):
                     val_losses.append(loss.item())
             self.train()
 
-            if verbose:
-                t.set_description('Epoch {}/{} - Avg model train loss: {:.4f} - Avg model val loss: {:.4f}'.format(
-                    i + 1, epoch, np.mean(losses), np.mean(val_losses)))
+            if logger:
+                logger.store(ModelTrainLoss=np.mean(losses))
+                logger.store(ModelValLoss=np.mean(val_losses))
+
+            t.set_description('Epoch {}/{} - Avg model train loss: {:.4f} - Avg model val loss: {:.4f}'.format(
+                i + 1, epoch, np.mean(losses), np.mean(val_losses)))
 
     def predict_next_states(self, states, actions):
         assert self.state_mean is not None, 'Please set statistics before training for inference.'
@@ -242,7 +246,7 @@ class StochasticVariationalWorldModel(WorldModel):
         super(StochasticVariationalWorldModel, self).eval()
         self.inference_network.eval()
 
-    def fit_dynamic_model(self, dataset: Dataset, epoch=10, batch_size=128, verbose=False):
+    def fit_dynamic_model(self, dataset, epoch=10, batch_size=128, verbose=False):
         t = range(epoch)
         if verbose:
             t = tqdm(t)

@@ -111,7 +111,6 @@ class Agent(deep_rl.BaseAgent):
         logger = EpochLogger(output_dir=log_dir, exp_name=exp_name)
 
         best_mean_episode_reward = -np.inf
-        total_timesteps = 0
         timer = Timer()
         timer.reset()
 
@@ -136,6 +135,7 @@ class Agent(deep_rl.BaseAgent):
 
         sampler = StepSampler(prefill_steps=prefill_steps, logger=logger)
         sampler.initialize(env, exploration_agent, replay_buffer)
+        total_timesteps = prefill_steps // env.num_envs * prefill_steps
 
         exploration_agent.predict_batch = lambda state: np.clip(self.predict_batch(state) + actor_noise(),
                                                                 -action_limit, action_limit)

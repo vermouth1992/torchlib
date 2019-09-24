@@ -4,7 +4,6 @@ Planner for model-based RL
 
 import numpy as np
 import torch
-import torch.nn as nn
 from torchlib.common import convert_numpy_to_tensor, FloatTensor
 from torchlib.deep_rl import BaseAgent
 from torchlib.utils.random.sampler import BaseSampler, IntSampler
@@ -20,7 +19,7 @@ class Planner(BaseAgent):
     def __init__(self, model: WorldModel):
         self.model = model
 
-    def predict(self, state):
+    def predict_batch(self, states):
         raise NotImplementedError
 
 
@@ -41,79 +40,37 @@ class BestRandomActionPlanner(Planner):
         self.num_random_action_selection = num_random_action_selection
         self.gamma_inverse = 1. / gamma
 
-    def predict(self, state):
-        states = np.expand_dims(state, axis=0)
-        actions = self.action_sampler.sample((self.horizon, self.num_random_action_selection))
-        states = np.tile(states, (self.num_random_action_selection, 1))
+    @torch.no_grad()
+    def predict_batch(self, states):
+        batch_size = states.shape[0]
+        actions = self.action_sampler.sample((self.horizon, batch_size, self.num_random_action_selection))
+        states = np.expand_dims(states, axis=1)
+        states = (states, (1, self.num_random_action_selection, 1))
         states = convert_numpy_to_tensor(states)
         actions = convert_numpy_to_tensor(actions)
 
-        with torch.no_grad():
-            cost = torch.zeros(size=(self.num_random_action_selection,)).type(FloatTensor)
-            for i in range(self.horizon):
-                next_states, rewards = self.model.predict_next_states_rewards(states, actions[i])
-                cost += -rewards * self.gamma_inverse
-                states = next_states
+        cost = torch.zeros(size=(batch_size, self.num_random_action_selection)).type(FloatTensor)
+        for i in range(self.horizon):
+            # reshape states and actions
+            states = states.view(-1, *states.shape[2:])  # (b, K, ob_dim) -> (b * K, ob_dim)
+            current_action = actions[i].view(-1, *actions[i][2:])
+            # predict next states and rewards
+            next_states, rewards = self.model.predict_next_states_rewards(states, current_action)
+            # reshape back
+            rewards = rewards.view(batch_size, self.num_random_action_selection)
+            next_states = next_states.view(batch_size, self.num_random_action_selection, *states.shape[2:])
 
-            best_action = actions[0, torch.argmin(cost, dim=0)]
-            best_action = best_action.cpu().numpy()
-            return best_action
+            cost += -rewards * self.gamma_inverse
+            states = next_states
 
-
-class TanhActionModule(nn.Module):
-    def __init__(self, init_action):
-        super(TanhActionModule, self).__init__()
-        init_action = convert_numpy_to_tensor(init_action)
-        self.action = nn.Parameter(data=init_action, requires_grad=True)
-
-    def forward(self, h):
-        return torch.tanh(self.action[h: h + 1])
+        best_action = torch.gather(actions[0], dim=1, index=torch.argmin(cost, dim=1, keepdim=True))
+        best_action = best_action.cpu().numpy()
+        return best_action
 
 
-class GradientDescentActionPlanner(Planner):
-    """
-    Notes: only applicable to continuous action space. It also requires that cost_fn is differentiable.
-    """
-
-    def __init__(self, model, action_sampler, horizon=15, num_iterations=100, gamma=0.95):
-        super(GradientDescentActionPlanner, self).__init__(model=model)
-        self.action_sampler = action_sampler
-        self.horizon = horizon
-        self.num_iterations = num_iterations
-        self.gamma_inverse = 1. / gamma
-
-    def predict(self, state):
-        """ The model must be in evaluation mode and turn off gradient update
-
-        Args:
-            state: (ob_dim)
-
-        Returns: optimal action (ac_dim)
-
-        """
-        action_module = TanhActionModule(init_action=self.action_sampler.sample((self.horizon,)))
-        optimizer = torch.optim.Adam(action_module.parameters(), lr=1e-3)
-        # t = tqdm(range(self.num_iterations), desc='Planning')
-        t = range(self.num_iterations)
-        for iteration in t:
-            optimizer.zero_grad()
-            cost = []
-            current_state = convert_numpy_to_tensor(np.expand_dims(state, axis=0))
-            for h in range(self.horizon):
-                current_action = action_module.forward(h)
-                next_states, rewards = self.model.predict_next_states_rewards(current_state, current_action)
-                cost.append(-rewards * self.gamma_inverse)
-                current_state = next_states
-            cost = torch.mean(torch.cat(cost))
-            cost.backward()
-
-            nn.utils.clip_grad_norm_(action_module.parameters(), max_norm=1.0)
-
-            optimizer.step()
-
-            # t.set_description('Iter {}/{}, Cost {:.4f}'.format(iteration + 1, self.num_iterations, cost.item()))
-
-        return action_module.forward(0)[0].cpu().detach().numpy()
+"""
+TODO: modify MCTS to batch mode
+"""
 
 
 class GameState(object):

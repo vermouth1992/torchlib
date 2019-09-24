@@ -19,7 +19,6 @@ def make_parser():
     parser.add_argument('--training_epochs', type=int, default=60)
     parser.add_argument('--training_batch_size', type=int, default=128)
     parser.add_argument('--dataset_maxlen', type=int, default=10000)
-    parser.add_argument('--planner', type=str, choices=['random', 'uct', 'gradient'], default='random')
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--dagger', action='store_true')
     parser.add_argument('--fit_reward', action='store_true')
@@ -44,9 +43,8 @@ if __name__ == '__main__':
 
     model_based_wrapper = deep_rl.envs.wrappers.get_model_based_wrapper(args['env_name'])
 
-    env_fn = lambda: model_based_wrapper(deep_rl.envs.make_env(args['env_name'], args))
+    env = deep_rl.envs.make_env(args['env_name'], num_envs=None)
 
-    env = env_fn()
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
     ob_dim = env.observation_space.shape[0]
 
@@ -62,6 +60,7 @@ if __name__ == '__main__':
                                                output_activation=None)
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
             policy = deep_rl.algorithm.model_based.DiscreteImitationPolicy(actor, actor_optimizer)
+
     else:
         ac_dim = env.action_space.shape[0]
         print('Action high: {}. Action low: {}'.format(env.action_space.high, env.action_space.low))
@@ -75,6 +74,7 @@ if __name__ == '__main__':
             actor_optimizer = torch.optim.Adam(actor.parameters(), lr=args['learning_rate'])
             policy = deep_rl.algorithm.model_based.policy.ContinuousImitationPolicy(actor, actor_optimizer)
 
+
     optimizer = torch.optim.Adam(dynamics_model.parameters(), lr=args['learning_rate'])
 
     if args['fit_reward']:
@@ -83,26 +83,12 @@ if __name__ == '__main__':
     model = deep_rl.algorithm.model_based.DeterministicWorldModel(dynamics_model=dynamics_model, optimizer=optimizer,
                                                                   cost_fn_batch=env.cost_fn_batch)
 
-    if args['planner'] == 'random':
-        planner = deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model,
-                                                                                action_sampler=action_sampler,
-                                                                                horizon=args['horizon'],
-                                                                                num_random_action_selection=args[
-                                                                                    'num_actions'],
-                                                                                gamma=args['gamma'])
-    elif args['planner'] == 'uct':
-        planner = deep_rl.algorithm.model_based.planner.UCTPlanner(model, action_sampler, env.cost_fn_batch,
-                                                                   num_reads=args['num_actions'])
-
-    elif args['planner'] == 'gradient':
-        planner = deep_rl.algorithm.model_based.planner.GradientDescentActionPlanner(model=model,
-                                                                                     action_sampler=action_sampler,
-                                                                                     horizon=args['horizon'],
-                                                                                     num_iterations=args['num_iter'],
-                                                                                     gamma=args['gamma'])
-
-    else:
-        raise ValueError('Unknown planner {}'.format(args['planner']))
+    planner = deep_rl.algorithm.model_based.planner.BestRandomActionPlanner(model=model,
+                                                                            action_sampler=action_sampler,
+                                                                            horizon=args['horizon'],
+                                                                            num_random_action_selection=args[
+                                                                                'num_actions'],
+                                                                            gamma=args['gamma'])
 
     if dagger:
         agent = deep_rl.algorithm.model_based.agent.ModelBasedDAggerAgent(model=model, planner=planner, policy=policy,
@@ -112,7 +98,7 @@ if __name__ == '__main__':
 
     single_env = env if args['single_process'] else None
 
-    agent.train(env_fn=env_fn, env=single_env,
+    agent.train(env=single_env,
                 dataset_maxlen=args['dataset_maxlen'],
                 num_init_random_rollouts=args['num_init_random_rollouts'],
                 max_rollout_length=args['max_rollout_length'],
