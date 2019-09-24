@@ -4,11 +4,10 @@ import gym
 import numpy as np
 import torch.optim
 import torchlib.deep_rl as deep_rl
-import torchlib.deep_rl.algorithm as algo
 from torchlib.common import device
 
 if __name__ == '__main__':
-    parser = algo.sac.make_default_parser()
+    parser = torchlib.deep_rl.algorithm.sac.sac.make_default_parser()
 
     parser.add_argument('--nn_size', type=int, default=256)
     parser.add_argument('--continue', action='store_true')
@@ -26,7 +25,7 @@ if __name__ == '__main__':
     env = deep_rl.envs.make_env(args['env_name'], args)
 
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
-    policy_net, q_network = algo.sac.get_policy_net_q_network(env, args)
+    policy_net, q_network = torchlib.deep_rl.algorithm.sac.sac.get_policy_net_q_network(env, args)
 
     learning_rate = args['learning_rate']
 
@@ -48,14 +47,14 @@ if __name__ == '__main__':
         log_alpha_tensor = None
         alpha_optimizer = None
 
-    agent = algo.sac.SoftActorCritic(policy_net=policy_net, policy_optimizer=policy_optimizer,
-                                     q_network=q_network, q_optimizer=q_optimizer,
-                                     discrete=discrete,
-                                     target_entropy=target_entropy,
-                                     log_alpha_tensor=log_alpha_tensor,
-                                     min_alpha=args['min_alpha'],
-                                     alpha_optimizer=alpha_optimizer,
-                                     tau=args['tau'], alpha=args['alpha'], discount=args['discount'])
+    agent = torchlib.deep_rl.algorithm.sac.sac.SoftActorCritic(policy_net=policy_net, policy_optimizer=policy_optimizer,
+                                                               q_network=q_network, q_optimizer=q_optimizer,
+                                                               discrete=discrete,
+                                                               target_entropy=target_entropy,
+                                                               log_alpha_tensor=log_alpha_tensor,
+                                                               min_alpha=args['min_alpha'],
+                                                               alpha_optimizer=alpha_optimizer,
+                                                               tau=args['tau'], alpha=args['alpha'], discount=args['discount'])
 
     checkpoint_path = 'checkpoint/{}_SAC.ckpt'.format(args['env_name'])
 

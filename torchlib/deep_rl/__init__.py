@@ -2,7 +2,7 @@ import gym
 import numpy as np
 from gym.envs.registration import register
 from gym.spaces import Space
-
+from abc import ABC, abstractmethod
 from torchlib.utils.random import set_global_seeds
 
 register(
@@ -26,10 +26,11 @@ register(
 )
 
 
-class BaseAgent(object):
+class BaseAgent(ABC):
     def predict(self, state):
         return self.predict_batch(np.expand_dims(state, axis=0))[0]
 
+    @abstractmethod
     def predict_batch(self, states):
         raise NotImplementedError
 

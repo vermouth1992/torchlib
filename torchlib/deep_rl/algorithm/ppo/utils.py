@@ -4,7 +4,6 @@ Common utilities to implement policy gradient algorithms
 
 from collections import namedtuple, deque
 
-import gym
 import numpy as np
 from scipy import signal
 from torchlib.dataset.utils import create_data_loader
@@ -110,14 +109,9 @@ class PPOReplayBuffer(ReplayBuffer):
 
 class PPOSampler(Sampler):
     def __init__(self, min_steps_per_batch, logger=None):
-        super(PPOSampler, self).__init__(max_episode_length=-1, prefill_steps=0)
+        super(PPOSampler, self).__init__()
         self.min_steps_per_batch = min_steps_per_batch
         self.logger = logger
-
-    def initialize(self, env, policy, pool: PPOReplayBuffer):
-        assert isinstance(env, gym.vector.VectorEnv), \
-            'env must be Vector env for consistency. Use SynchronizeEnv to wrap for num_env=1'
-        super(PPOSampler, self).initialize(env=env, policy=policy, pool=pool)
 
     def sample_trajectories(self, policy=None):
         obs_lst = []

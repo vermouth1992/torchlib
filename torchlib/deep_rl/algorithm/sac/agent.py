@@ -5,6 +5,8 @@ The advantage is that it automatically incorporates exploration by encouraging l
 """
 
 import copy
+import time
+import datetime
 
 import numpy as np
 import torch
@@ -12,46 +14,48 @@ import torch.distributions
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
-from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor
+import torch.optim as optim
+from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor, device
 from torchlib.deep_rl import BaseAgent
+from torchlib.deep_rl.utils.replay.replay import TransitionReplayBuffer
+from torchlib.deep_rl.utils.replay.sampler import StepSampler
 from torchlib.utils.random import set_global_seeds
 from torchlib.utils.weight import soft_update, hard_update
+from torchlib.utils.logx import EpochLogger
 from tqdm.auto import tqdm
 
-from .utils import SimpleSampler, SimpleReplayPool
 
-
-class SoftActorCritic(BaseAgent):
+class Agent(BaseAgent):
     def __init__(self,
-                 policy_net: nn.Module, policy_optimizer,
-                 q_network: nn.Module, q_optimizer,
+                 nets,
                  discrete,
+                 learning_rate=3e-4,
+                 automatic_alpha=True,
                  target_entropy=None,
-                 alpha_optimizer=None,
-                 log_alpha_tensor=None,
-                 tau=0.01,
                  alpha=1.0,
-                 min_alpha=0.02,
-                 discount=0.99,
+                 tau=5e-3,
+                 gamma=0.99,
                  ):
-        self.policy_net = policy_net
-        self.policy_optimizer = policy_optimizer
+        self.policy_net = nets.policy_net
+        self.q_network = nets.q_network
+        self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
+        self.q_optimizer = optim.Adam(self.q_network.parameters(), lr=learning_rate)
+
         self.discrete = discrete
-        self.q_network = q_network
-        self.q_optimizer = q_optimizer
         self.target_q_network = copy.deepcopy(self.q_network)
 
         hard_update(self.target_q_network, self.q_network)
 
-        if log_alpha_tensor is not None:
-            self._min_alpha = min_alpha
-        self._alpha = alpha
-        self._discount = discount
-        self._tau = tau
+        if automatic_alpha:
+            self.log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)
+            self.alpha_optimizer = torch.optim.Adam([self.log_alpha_tensor], lr=learning_rate)
+            self.target_entropy = target_entropy
+        else:
+            self.log_alpha_tensor = None
 
-        self._target_entropy = target_entropy
-        self._log_alpha_tensor = log_alpha_tensor
-        self.alpha_optimizer = alpha_optimizer
+        self.alpha = alpha
+        self.tau = tau
+        self.gamma = gamma
 
         if enable_cuda:
             self.policy_net.cuda()
@@ -59,7 +63,7 @@ class SoftActorCritic(BaseAgent):
             self.target_q_network.cuda()
 
     def update_target(self):
-        soft_update(self.target_q_network, self.q_network, self._tau)
+        soft_update(self.target_q_network, self.q_network, self.tau)
 
     def update(self, obs, actions, next_obs, done, reward):
         """ Sample a mini-batch from replay buffer and update the network
@@ -88,8 +92,8 @@ class SoftActorCritic(BaseAgent):
             next_action = next_action_distribution.sample()
             next_action_log_prob = next_action_distribution.log_prob(next_action)
             target_q_values = self.target_q_network.forward(next_obs, next_action,
-                                                            True) - self._alpha * next_action_log_prob
-            q_target = reward + self._discount * (1.0 - done) * target_q_values
+                                                            True) - self.alpha * next_action_log_prob
+            q_target = reward + self.gamma * (1.0 - done) * target_q_values
 
         q_values_loss = F.mse_loss(q_values, q_target) + F.mse_loss(q_values2, q_target)
 
@@ -108,17 +112,15 @@ class SoftActorCritic(BaseAgent):
             pi = action_distribution.rsample()
             log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
             q_values_pi_min = self.q_network.forward(obs, pi, True)
-            policy_loss = torch.mean(log_prob * self._alpha - q_values_pi_min)
+            policy_loss = torch.mean(log_prob * self.alpha - q_values_pi_min)
 
         # alpha loss
-        if self._log_alpha_tensor is not None:
-            alpha_loss = -(self._log_alpha_tensor * (log_prob + self._target_entropy).detach()).mean()
+        if self.log_alpha_tensor is not None:
+            alpha_loss = -(self.log_alpha_tensor * (log_prob + self.target_entropy).detach()).mean()
 
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
             self.alpha_optimizer.step()
-
-            self._alpha = max(self._log_alpha_tensor.exp().item(), self._min_alpha)
 
         self.q_optimizer.zero_grad()
         q_values_loss.backward()
@@ -129,15 +131,14 @@ class SoftActorCritic(BaseAgent):
         self.policy_optimizer.step()
 
     def get_alpha(self):
-        return self._alpha
+        return self.alpha
 
-    def predict(self, state):
-        state = np.expand_dims(state, axis=0)
-        with torch.no_grad():
-            obs = torch.from_numpy(state).type(FloatTensor)
-            action_distribution = self.policy_net.forward(obs)
-            actions = action_distribution.sample().cpu().numpy()
-            return actions[0]
+    @torch.no_grad()
+    def predict_batch(self, state):
+        obs = torch.from_numpy(state).type(FloatTensor)
+        action_distribution = self.policy_net.forward(obs)
+        actions = action_distribution.sample().cpu().numpy()
+        return actions
 
     def save_checkpoint(self, checkpoint_path):
         torch.save(self.policy_net.state_dict(), checkpoint_path)
@@ -146,60 +147,53 @@ class SoftActorCritic(BaseAgent):
         state_dict = torch.load(checkpoint_path)
         self.policy_net.load_state_dict(state_dict)
 
-    def train(self, env, n_epochs, max_episode_length, prefill_steps, epoch_length,
-              replay_pool_size, batch_size, seed, checkpoint_path=None):
-        set_global_seeds(seed)
+    def train(self, env, exp_name, num_epochs, epoch_length, prefill_steps,
+              replay_pool_size, batch_size, seed, logdir=None, checkpoint_path=None):
+
         env.seed(seed)
+        logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
+        sampler = StepSampler(prefill_steps=prefill_steps, logger=logger)
 
-        sampler = SimpleSampler(max_episode_length=max_episode_length, prefill_steps=prefill_steps)
-
-        replay_pool = SimpleReplayPool(
-            observation_shape=env.observation_space.shape,
-            action_shape=env.action_space.shape,
-            observation_dtype=str(env.observation_space.dtype),
-            action_dtype=str(env.action_space.dtype),
-            max_size=replay_pool_size)
+        replay_pool = TransitionReplayBuffer(
+            capacity=replay_pool_size,
+            obs_shape=env.single_observation_space.shape,
+            obs_dtype=env.single_observation_space.dtype,
+            ac_shape=env.single_action_space.shape,
+            ac_dtype=env.single_action_space.dtype,
+            )
 
         sampler.initialize(env, self, replay_pool)
 
         best_mean_episode_reward = -np.inf
+        start_time = time.time()
+        total_timesteps = prefill_steps // env.num_envs * prefill_steps
 
-        for epoch in range(n_epochs):
-            for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, n_epochs)):
+        for epoch in range(num_epochs):
+            for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, num_epochs)):
                 sampler.sample()
-
-                batch = sampler.random_batch(batch_size)
-
-                obs = batch['observations']
-                actions = batch['actions']
-                next_obs = batch['next_observations']
-                reward = batch['rewards']
-                done = batch['terminals']
-
+                obs, actions, next_obs, reward, done = replay_pool.sample(batch_size)
                 self.update(obs=obs, actions=actions, next_obs=next_obs, done=done, reward=reward)
                 self.update_target()
 
-            # logging
-            episode_rewards = sampler.get_episode_rewards()
-            last_period_episode_reward = episode_rewards[-100:]
-            mean_episode_reward = np.mean(last_period_episode_reward)
+            total_timesteps += epoch_length * env.num_envs
+            time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
+            # save best model
+            avg_return = logger.get_stats('EpReward')[0]
 
-            if mean_episode_reward > best_mean_episode_reward:
+            if avg_return > best_mean_episode_reward:
+                best_mean_episode_reward = avg_return
                 if checkpoint_path:
                     self.save_checkpoint(checkpoint_path)
 
-            std_episode_reward = np.std(last_period_episode_reward)
-            best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-            print("Total timesteps {}".format(sampler.get_total_steps()))
-            print("Mean reward (10 episodes) {:.2f}. std {:.2f}".format(np.mean(episode_rewards[-10:]),
-                                                                        np.std(episode_rewards[-10:])))
-            print("Mean reward (100 episodes) {:.2f}. std {:.2f}".format(mean_episode_reward, std_episode_reward))
-            print('Reward range [{:.2f}, {:.2f}]'.format(np.min(last_period_episode_reward),
-                                                         np.max(last_period_episode_reward)))
-            print("Best mean reward {:.2f}".format(best_mean_episode_reward))
-            print("Episodes {}".format(len(episode_rewards)))
-            print("Alpha {:.4f}".format(self.get_alpha()))
-            print('------------')
+            # logging
+            logger.log_tabular('Time Elapsed', time_elapse)
+            logger.log_tabular('EpReward', with_min_and_max=True)
+            logger.log_tabular('EpLength', average_only=True, with_min_and_max=True)
+            logger.log_tabular('TotalSteps', total_timesteps)
+            logger.log_tabular('BestAvgReward', best_mean_episode_reward)
+            logger.log_tabular('Alpha', self.get_alpha())
+            logger.log_tabular('Replay Size', len(replay_pool))
+            logger.dump_tabular()
 
 
 def make_default_parser():
