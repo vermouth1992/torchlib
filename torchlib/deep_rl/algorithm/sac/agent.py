@@ -33,8 +33,8 @@ class Agent(BaseAgent):
                  gamma=0.99,
                  **kwargs,
                  ):
-        self.policy_net = nets.policy_net
-        self.q_network = nets.q_network
+        self.policy_net = nets['policy_net']
+        self.q_network = nets['q_network']
         self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
         self.q_optimizer = optim.Adam(self.q_network.parameters(), lr=learning_rate)
 
@@ -190,6 +190,7 @@ class Agent(BaseAgent):
             logger.log_tabular('EpReward', with_min_and_max=True)
             logger.log_tabular('EpLength', average_only=True, with_min_and_max=True)
             logger.log_tabular('TotalSteps', total_timesteps)
+            logger.log_tabular('TotalEpisodes', sampler.get_total_episode())
             logger.log_tabular('BestAvgReward', best_mean_episode_reward)
             logger.log_tabular('Alpha', self.get_alpha())
             logger.log_tabular('Replay Size', len(replay_pool))

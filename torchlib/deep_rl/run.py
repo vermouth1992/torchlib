@@ -32,8 +32,10 @@ if __name__ == '__main__':
     algorithm_parsers = parser.add_subparsers(title='algorithm', help='algorithm specific parser', dest='algo')
     ppo_parser = algorithm_parsers.add_parser('ppo')
     rl_algo.ppo.add_args(ppo_parser)
-    sac_parset = algorithm_parsers.add_parser('sac')
-    rl_algo.sac.add_args(sac_parset)
+    sac_parser = algorithm_parsers.add_parser('sac')
+    rl_algo.sac.add_args(sac_parser)
+    td3_parser = algorithm_parsers.add_parser('td3')
+    rl_algo.td3.add_args(td3_parser)
 
     kwargs = vars(parser.parse_args())
     pprint.pprint(kwargs)
@@ -59,6 +61,10 @@ if __name__ == '__main__':
         else:
             target_entropy = None
         agent = rl_algo.sac.Agent(nets=nets, discrete=discrete, target_entropy=target_entropy, **kwargs)
+    elif kwargs['algo'] == 'td3':
+        nets = rl_algo.td3.get_nets(dummy_env, kwargs)
+        assert not deep_rl.envs.is_discrete(dummy_env), 'TD3 only supports continuous environment'
+        agent = rl_algo.td3.Agent(nets=nets, **kwargs)
     else:
         raise NotImplementedError
 

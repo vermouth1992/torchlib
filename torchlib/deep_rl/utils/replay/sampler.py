@@ -48,6 +48,7 @@ class StepSampler(Sampler):
     def initialize(self, env, policy, pool):
         super(StepSampler, self).initialize(env=env, policy=policy, pool=pool)
         self.current_observation = self.env.reset()
+        self.total_episodes = 0
         self.ep_rewards = np.zeros(shape=(self.env.num_envs))
         self.ep_length = np.zeros(shape=(self.env.num_envs), dtype=np.int)
         for _ in range(self.prefill_steps // self.env.num_envs):
@@ -67,6 +68,7 @@ class StepSampler(Sampler):
                 self.ep_rewards[i] = 0.
                 self.logger.store(EpLength=self.ep_length[i])
                 self.ep_length[i] = 0
+                self.total_episodes += 1
 
         self.pool.add_batch(
             states=self.current_observation,
@@ -76,3 +78,6 @@ class StepSampler(Sampler):
             dones=terminal)
 
         self.current_observation = next_observation
+
+    def get_total_episode(self):
+        return self.total_episodes

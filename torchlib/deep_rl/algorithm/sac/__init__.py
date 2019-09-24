@@ -1,10 +1,9 @@
-from collections import namedtuple
-
 from torchlib import deep_rl
 
 from .agent import Agent
+from torchlib import deep_rl
 
-SACNet = namedtuple('SACNet', ('policy_net', 'q_network'))
+from .agent import Agent
 
 
 def add_args(parser):
@@ -57,7 +56,10 @@ def get_nets(env, args):
                                             action_dim=ac_dim)
             q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
 
-        return SACNet(policy_net=policy_net, q_network=q_network)
+        return {
+            'policy_net': policy_net,
+            'q_network': q_network
+        }
 
     elif len(env.observation_space.shape) == 3:
         if env.observation_space.shape[:2] == (84, 84):
@@ -67,7 +69,10 @@ def get_nets(env, args):
                                      action_dim=env.action_space.n)
             q_network = DoubleAtariQModule(frame_history_len=args['frame_history_len'],
                                            action_dim=env.action_space.n)
-            return SACNet(policy_net=policy_net, q_network=q_network)
+            return {
+                'policy_net': policy_net,
+                'q_network': q_network
+            }
         else:
             raise ValueError('Not a typical env. Please define custom network')
 
