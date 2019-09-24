@@ -5,13 +5,10 @@ The advantage is that it automatically incorporates exploration by encouraging l
 """
 
 import copy
-import time
-import datetime
 
 import numpy as np
 import torch
 import torch.distributions
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
 import torch.optim as optim
@@ -19,9 +16,9 @@ from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor, d
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.utils.replay.replay import TransitionReplayBuffer
 from torchlib.deep_rl.utils.replay.sampler import StepSampler
-from torchlib.utils.random import set_global_seeds
-from torchlib.utils.weight import soft_update, hard_update
 from torchlib.utils.logx import EpochLogger
+from torchlib.utils.timer import Timer
+from torchlib.utils.weight import soft_update, hard_update
 from tqdm.auto import tqdm
 
 
@@ -30,11 +27,11 @@ class Agent(BaseAgent):
                  nets,
                  discrete,
                  learning_rate=3e-4,
-                 automatic_alpha=True,
                  target_entropy=None,
                  alpha=1.0,
                  tau=5e-3,
                  gamma=0.99,
+                 **kwargs,
                  ):
         self.policy_net = nets.policy_net
         self.q_network = nets.q_network
@@ -46,7 +43,7 @@ class Agent(BaseAgent):
 
         hard_update(self.target_q_network, self.q_network)
 
-        if automatic_alpha:
+        if target_entropy is not None:
             self.log_alpha_tensor = torch.zeros(1, requires_grad=True, device=device)
             self.alpha_optimizer = torch.optim.Adam([self.log_alpha_tensor], lr=learning_rate)
             self.target_entropy = target_entropy
@@ -88,7 +85,7 @@ class Agent(BaseAgent):
         q_values, q_values2 = self.q_network.forward(obs, actions, False)
 
         with torch.no_grad():
-            next_action_distribution = self.policy_net.forward(next_obs)
+            next_action_distribution = self.policy_net.forward_action(next_obs)
             next_action = next_action_distribution.sample()
             next_action_log_prob = next_action_distribution.log_prob(next_action)
             target_q_values = self.target_q_network.forward(next_obs, next_action,
@@ -100,7 +97,7 @@ class Agent(BaseAgent):
         # policy loss
         if self.discrete:
             # for discrete action space, we can directly compute kl divergence analytically without sampling
-            action_distribution = self.policy_net.forward(obs)
+            action_distribution = self.policy_net.forward_action(obs)
             q_values_min = self.q_network.forward(obs, None, True)  # (batch_size, ac_dim)
             probs = F.softmax(q_values_min, dim=-1)
             target_distribution = torch.distributions.Categorical(probs=probs)
@@ -108,7 +105,7 @@ class Agent(BaseAgent):
             log_prob = -action_distribution.entropy()
 
         else:
-            action_distribution = self.policy_net.forward(obs)
+            action_distribution = self.policy_net.forward_action(obs)
             pi = action_distribution.rsample()
             log_prob = action_distribution.log_prob(pi)  # should be shape (batch_size,)
             q_values_pi_min = self.q_network.forward(obs, pi, True)
@@ -121,6 +118,8 @@ class Agent(BaseAgent):
             self.alpha_optimizer.zero_grad()
             alpha_loss.backward()
             self.alpha_optimizer.step()
+
+            self.alpha = self.log_alpha_tensor.exp().item()
 
         self.q_optimizer.zero_grad()
         q_values_loss.backward()
@@ -136,7 +135,7 @@ class Agent(BaseAgent):
     @torch.no_grad()
     def predict_batch(self, state):
         obs = torch.from_numpy(state).type(FloatTensor)
-        action_distribution = self.policy_net.forward(obs)
+        action_distribution = self.policy_net.forward_action(obs)
         actions = action_distribution.sample().cpu().numpy()
         return actions
 
@@ -148,7 +147,8 @@ class Agent(BaseAgent):
         self.policy_net.load_state_dict(state_dict)
 
     def train(self, env, exp_name, num_epochs, epoch_length, prefill_steps,
-              replay_pool_size, batch_size, seed, logdir=None, checkpoint_path=None):
+              replay_pool_size, batch_size, seed, logdir=None, checkpoint_path=None,
+              **kwargs):
 
         env.seed(seed)
         logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
@@ -160,14 +160,15 @@ class Agent(BaseAgent):
             obs_dtype=env.single_observation_space.dtype,
             ac_shape=env.single_action_space.shape,
             ac_dtype=env.single_action_space.dtype,
-            )
+        )
 
         sampler.initialize(env, self, replay_pool)
 
         best_mean_episode_reward = -np.inf
-        start_time = time.time()
+        timer = Timer()
         total_timesteps = prefill_steps // env.num_envs * prefill_steps
 
+        timer.reset()
         for epoch in range(num_epochs):
             for _ in tqdm(range(epoch_length), desc='Epoch {}/{}'.format(epoch + 1, num_epochs)):
                 sampler.sample()
@@ -176,7 +177,6 @@ class Agent(BaseAgent):
                 self.update_target()
 
             total_timesteps += epoch_length * env.num_envs
-            time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
             # save best model
             avg_return = logger.get_stats('EpReward')[0]
 
@@ -186,7 +186,7 @@ class Agent(BaseAgent):
                     self.save_checkpoint(checkpoint_path)
 
             # logging
-            logger.log_tabular('Time Elapsed', time_elapse)
+            logger.log_tabular('Time Elapsed', timer.get_time_elapsed())
             logger.log_tabular('EpReward', with_min_and_max=True)
             logger.log_tabular('EpLength', average_only=True, with_min_and_max=True)
             logger.log_tabular('TotalSteps', total_timesteps)
@@ -194,74 +194,3 @@ class Agent(BaseAgent):
             logger.log_tabular('Alpha', self.get_alpha())
             logger.log_tabular('Replay Size', len(replay_pool))
             logger.dump_tabular()
-
-
-def make_default_parser():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('env_name', type=str)
-    parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--n_epochs', type=int, default=500)
-    parser.add_argument('--alpha', type=float, default=0.2)
-    parser.add_argument('--min_alpha', type=float, default=0.02)
-    parser.add_argument('--tau', type=float, default=5e-3)
-    parser.add_argument('--learning_rate', type=float, default=3e-4)
-    parser.add_argument('--max_episode_length', type=float, default=1000)
-    parser.add_argument('--no_automatic_entropy_tuning', action='store_true')
-    parser.add_argument('--epoch_length', type=int, default=1000)
-    parser.add_argument('--prefill_steps', type=int, default=1000)
-    parser.add_argument('--replay_pool_size', type=int, default=1000000)
-    parser.add_argument('--seed', type=int, default=123)
-    return parser
-
-
-def get_policy_net_q_network(env, args):
-    """ Return the policy network and q network
-
-    Args:
-        env: standard gym env instance
-        args: arguments
-
-    Returns: policy network, q network
-
-    """
-    import gym
-    discrete = isinstance(env.action_space, gym.spaces.Discrete)
-
-    if not discrete:
-        print('Action space high', env.action_space.high)
-        print('Action space low', env.action_space.low)
-
-    if len(env.observation_space.shape) == 1:
-        # low dimensional environment
-        ob_dim = env.observation_space.shape[0]
-        ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
-        if discrete:
-            from torchlib.deep_rl.models import CategoricalNNFeedForwardPolicy, DoubleQModule
-            policy_net = CategoricalNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
-                                                        action_dim=ac_dim)
-            q_network = DoubleQModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-        else:
-            from torchlib.deep_rl.models import TanhNormalNNFeedForwardPolicy, DoubleCriticModule
-
-            policy_net = TanhNormalNNFeedForwardPolicy(nn_size=args['nn_size'], state_dim=ob_dim,
-                                                       action_dim=ac_dim)
-            q_network = DoubleCriticModule(size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim)
-
-        return policy_net, q_network
-
-    elif len(env.observation_space.shape) == 3:
-        if env.observation_space.shape[:2] == (84, 84):
-            # atari env
-            from torchlib.deep_rl.models import AtariFeedForwardPolicy, DoubleAtariQModule
-            policy_net = AtariFeedForwardPolicy(num_channel=args['frame_history_len'],
-                                                action_dim=env.action_space.n)
-            q_network = DoubleAtariQModule(frame_history_len=args['frame_history_len'],
-                                           action_dim=env.action_space.n)
-            return policy_net, q_network
-        else:
-            raise ValueError('Not a typical env. Please define custom network')
-
-    else:
-        raise ValueError('Not a typical env. Please define custom network')

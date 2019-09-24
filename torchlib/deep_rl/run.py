@@ -12,6 +12,7 @@ For each algorithm, then need to have the following components
 import argparse
 import pprint
 
+import numpy as np
 import torchlib.deep_rl.algorithm as rl_algo
 from torchlib import deep_rl
 from torchlib.utils.random import set_global_seeds
@@ -31,6 +32,8 @@ if __name__ == '__main__':
     algorithm_parsers = parser.add_subparsers(title='algorithm', help='algorithm specific parser', dest='algo')
     ppo_parser = algorithm_parsers.add_parser('ppo')
     rl_algo.ppo.add_args(ppo_parser)
+    sac_parset = algorithm_parsers.add_parser('sac')
+    rl_algo.sac.add_args(sac_parset)
 
     kwargs = vars(parser.parse_args())
     pprint.pprint(kwargs)
@@ -45,6 +48,17 @@ if __name__ == '__main__':
     if kwargs['algo'] == 'ppo':
         policy_net = rl_algo.ppo.get_nets(dummy_env, kwargs)
         agent = rl_algo.ppo.Agent(policy_net=policy_net, **kwargs)
+    elif kwargs['algo'] == 'sac':
+        nets = rl_algo.sac.get_nets(dummy_env, kwargs)
+        discrete = deep_rl.envs.is_discrete(dummy_env)
+        if kwargs['automatic_alpha']:
+            if discrete:
+                target_entropy = -np.log(dummy_env.action_space.n) * 0.95
+            else:
+                target_entropy = -np.prod(dummy_env.action_space.shape)
+        else:
+            target_entropy = None
+        agent = rl_algo.sac.Agent(nets=nets, discrete=discrete, target_entropy=target_entropy, **kwargs)
     else:
         raise NotImplementedError
 

@@ -81,9 +81,9 @@ class TransitionReplayBuffer(ReplayBuffer):
 
     def _initialize(self):
         # This will not explicitly allocate memory until access
-        self._obs_storage = np.zeros(shape=[self._capacity] + self._obs_shape, dtype=self._obs_dtype)
-        self._action_storage = np.zeros(shape=[self._capacity] + self._ac_shape, dtype=self._ac_dtype)
-        self._next_obs_storage = np.zeros(shape=[self._capacity] + self._obs_shape, dtype=self._obs_dtype)
+        self._obs_storage = np.zeros(shape=[self._capacity] + list(self._obs_shape), dtype=self._obs_dtype)
+        self._action_storage = np.zeros(shape=[self._capacity] + list(self._ac_shape), dtype=self._ac_dtype)
+        self._next_obs_storage = np.zeros(shape=[self._capacity] + list(self._obs_shape), dtype=self._obs_dtype)
         self._reward_storage = np.zeros(shape=[self._capacity], dtype=np.float32)
         self._done_storage = np.zeros(shape=[self._capacity], dtype=np.bool)
         self._pointer = 0

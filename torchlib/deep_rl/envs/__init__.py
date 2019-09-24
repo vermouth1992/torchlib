@@ -2,6 +2,7 @@
 Define a bunch of new environments to fast deep RL algorithm verifying
 """
 
+import gym
 from torchlib import deep_rl
 
 from .cartpole_continuous import CartPoleEnvContinuous
@@ -39,6 +40,10 @@ def is_atari_env(env_name):
     if len(atari_env_name_list) == 0:
         construct_atari_game_list()
     return env_name in atari_env_name_list
+
+
+def is_discrete(env: gym.Env):
+    return isinstance(env.action_space, gym.spaces.Discrete)
 
 
 # construct env_name list for gym_ple

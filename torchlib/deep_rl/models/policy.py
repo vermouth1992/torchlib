@@ -237,11 +237,23 @@ class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
     def __init__(self, num_channel, action_dim):
         super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim)
 
-    def forward(self, state):
+    def _normalize_obs(self, state):
         state = state.type(FloatTensor)
         state = state / 255.0
         state = state.permute(0, 3, 1, 2)
+        return state
+
+    def forward(self, state):
+        state = self._normalize_obs(state)
         return super(AtariPolicy, self).forward(state)
+
+    def forward_action(self, state):
+        state = self._normalize_obs(state)
+        return super(AtariPolicy, self).forward_action(state)
+
+    def forward_value(self, state):
+        state = self._normalize_obs(state)
+        return super(AtariPolicy, self).forward_value(state)
 
 
 """

@@ -1,6 +1,3 @@
-import datetime
-import time
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,7 +6,7 @@ from torchlib import deep_rl
 from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_numpy_to_tensor
 from torchlib.dataset.utils import create_data_loader
 from torchlib.utils.logx import EpochLogger
-
+from torchlib.utils.timer import Timer
 
 from .utils import PPOReplayBuffer, PPOSampler
 
@@ -47,7 +44,7 @@ class Agent(deep_rl.BaseAgent):
 
     @torch.no_grad()
     def predict_batch(self, states):
-        states = convert_numpy_to_tensor(states)
+        states = convert_numpy_to_tensor(states.astype(np.float32))
         action_distribution = self.policy_net.forward_action(states)
         return action_distribution.sample().cpu().numpy()
 
@@ -148,8 +145,8 @@ class Agent(deep_rl.BaseAgent):
         # initialize training progress
         total_timesteps = 0
         best_avg_return = -np.inf
-        start_time = time.time()
-
+        timer = Timer()
+        timer.reset()
         for itr in range(num_epoch):
             replay_buffer.clear()
             sampler.sample_trajectories()
@@ -158,7 +155,6 @@ class Agent(deep_rl.BaseAgent):
 
             # calculate statistics
             total_timesteps += len(replay_buffer)
-            time_elapse = datetime.timedelta(seconds=int(time.time() - start_time))
             avg_return = logger.get_stats('EpReward')[0]
 
             # save the checkpoint
@@ -169,7 +165,7 @@ class Agent(deep_rl.BaseAgent):
                     self.save_checkpoint(checkpoint_path=checkpoint_path)
 
             logger.log_tabular('Epoch (Total {})'.format(num_epoch), itr + 1)
-            logger.log_tabular('Time Elapsed', time_elapse)
+            logger.log_tabular('Time Elapsed', timer.get_time_elapsed())
             logger.log_tabular('EpReward', with_min_and_max=True)
             logger.log_tabular('EpLength', average_only=True, with_min_and_max=True)
             logger.log_tabular('TotalSteps', total_timesteps)

@@ -7,6 +7,7 @@ Sample class for various RL algorithms. Typical RL algorithms contains two parts
 import gym
 import numpy as np
 
+
 class Sampler(object):
     def __init__(self):
         self.env = None
@@ -49,7 +50,7 @@ class StepSampler(Sampler):
         self.current_observation = self.env.reset()
         self.ep_rewards = np.zeros(shape=(self.env.num_envs))
         self.ep_length = np.zeros(shape=(self.env.num_envs), dtype=np.int)
-        for _ in range(self.prefill_steps //  self.env.num_envs):
+        for _ in range(self.prefill_steps // self.env.num_envs):
             self.sample()
 
     def sample(self, policy=None):
@@ -62,16 +63,16 @@ class StepSampler(Sampler):
 
         for i in range(terminal.shape[0]):
             if terminal[i] == True:
-                self.logger.store(EpReturn=self.ep_rewards[i])
+                self.logger.store(EpReward=self.ep_rewards[i])
                 self.ep_rewards[i] = 0.
                 self.logger.store(EpLength=self.ep_length[i])
                 self.ep_length[i] = 0
 
         self.pool.add_batch(
-            observations=self.current_observation,
+            states=self.current_observation,
             actions=action,
+            next_states=next_observation,
             rewards=reward,
-            terminals=terminal,
-            next_observations=next_observation)
+            dones=terminal)
 
         self.current_observation = next_observation
