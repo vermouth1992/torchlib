@@ -25,7 +25,7 @@ class PPOReplayBuffer(ReplayBuffer):
         self.memory = deque()
         self.running_value_mean = 0.
         self.running_value_std = 0.
-        self.alpha = 0.8
+        self.alpha = 0.9
 
     def clear(self):
         self._size = 0
@@ -101,8 +101,10 @@ class PPOReplayBuffer(ReplayBuffer):
 
         gaes = normalize(gaes, np.mean(gaes), np.std(gaes))
 
+        batch_size = min(batch_size, states.shape[0])
+
         data_loader = create_data_loader((states, actions, reward_to_go, gaes, old_log_prob),
-                                         batch_size=batch_size, shuffle=False, drop_last=False)
+                                         batch_size=batch_size, shuffle=True, drop_last=True)
 
         return data_loader
 

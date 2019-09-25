@@ -10,14 +10,16 @@ from .agent import Agent
 
 
 def add_args(parser: argparse.ArgumentParser):
-    parser.add_argument('--learning_rate', '-lr', type=float, default=2e-3)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=3e-4)
     parser.add_argument('--lam', type=float, default=0.98)
     parser.add_argument('--clip_param', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.01)
-    parser.add_argument('--target_kl', type=float, default=0.05)
+    parser.add_argument('--target_kl', type=float, default=0.01)
     parser.add_argument('--max_grad_norm', type=float, default=0.5)
+    parser.add_argument('--value_coef', type=float, default=0.5)
 
     parser.add_argument('--num_epoch', type=int, default=100)
+    parser.add_argument('--num_updates', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--min_steps_per_batch', '-b', type=int, default=1000)
 

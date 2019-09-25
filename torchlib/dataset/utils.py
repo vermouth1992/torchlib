@@ -52,6 +52,8 @@ def create_data_loader(data, batch_size=32, shuffle=True, drop_last=False):
     Returns: Pytorch data loader
 
     """
+    if drop_last:
+        batch_size = min(batch_size, data[0].shape[0])
     kwargs = {'num_workers': 0, 'pin_memory': True} if enable_cuda else {}
     dataset = create_tensor_dataset(data)
     loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=shuffle, drop_last=drop_last, **kwargs)
@@ -59,6 +61,8 @@ def create_data_loader(data, batch_size=32, shuffle=True, drop_last=False):
 
 
 def create_tuple_data_loader(tuples_data, batch_size=32, shuffle=True, drop_last=False):
+    if drop_last:
+        batch_size = min(batch_size, tuples_data[0][0].shape[0])
     kwargs = {'num_workers': 0, 'pin_memory': True} if enable_cuda else {}
     dataset = TupleDataset(tuples_data)
     loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=shuffle, drop_last=drop_last, **kwargs)
