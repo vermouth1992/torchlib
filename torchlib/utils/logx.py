@@ -112,6 +112,9 @@ class Logger:
         self.log_current_row = {}
         self.exp_name = exp_name
 
+    def get_output_dir(self):
+        return self.output_dir
+
     def log(self, msg, color='green'):
         """Print a colorized message to stdout."""
         if proc_id() == 0:

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -131,17 +133,23 @@ class Agent(deep_rl.BaseAgent):
         self.policy_net.load_state_dict(states)
 
     def save_checkpoint(self, checkpoint_path):
+        print('Saving checkpoint to {}'.format(checkpoint_path))
         torch.save(self.state_dict, checkpoint_path)
 
     def load_checkpoint(self, checkpoint_path):
+        print('Load checkpoint from {}'.format(checkpoint_path))
         state_dict = torch.load(checkpoint_path)
         self.load_state_dict(state_dict)
 
     def train(self, env, exp_name, num_epoch, num_updates, gamma, min_steps_per_batch, batch_size=128, alpha=0.9,
-              logdir=None, seed=1996, checkpoint_path=None, **kwargs):
+              logdir=None, seed=1996, checkpoint_path=None, save_freq=5, **kwargs):
 
         # create logger
         logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
+        if checkpoint_path is None:
+            dummy_env = env.env_fns[0]()
+            checkpoint_path = os.path.join(logger.get_output_dir(), dummy_env.spec.id)
+            del dummy_env
 
         # create sampler and pool
         sampler = PPOSampler(min_steps_per_batch=min_steps_per_batch, logger=logger)
@@ -163,14 +171,10 @@ class Agent(deep_rl.BaseAgent):
 
             # calculate statistics
             total_timesteps += len(replay_buffer)
-            avg_return = logger.get_stats('EpReward')[0]
+            best_avg_return = max(logger.get_stats('EpReward')[0], best_avg_return)
 
-            # save the checkpoint
-            if avg_return >= best_avg_return:
-                best_avg_return = avg_return
-                if checkpoint_path:
-                    print('Saving checkpoint to {}'.format(checkpoint_path))
-                    self.save_checkpoint(checkpoint_path=checkpoint_path)
+            if (itr + 1) % save_freq == 0:
+                self.save_checkpoint(checkpoint_path=checkpoint_path + '_epoch.{}.ckpt'.format(itr + 1))
 
             logger.log_tabular('Epoch (Total {})'.format(num_epoch), itr + 1)
             logger.log_tabular('Time Elapsed', timer.get_time_elapsed())

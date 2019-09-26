@@ -170,7 +170,7 @@ class PPOSampler(Sampler):
                                          actions=sub_action_lst[j],
                                          rewards=sub_reward_lst[j],
                                          last_value=sub_last_value_lst[j])
-                if self.logger and sub_last_value_lst[j] == 0.:
+                if self.logger:
                     self.logger.store(EpReward=np.sum(sub_reward_lst[j]) + sub_last_value_lst[j])
                     self.logger.store(EpLength=sub_obs_lst[j].shape[0])
 
