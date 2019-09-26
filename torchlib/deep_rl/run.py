@@ -77,4 +77,4 @@ if __name__ == '__main__':
         agent.train(env=env, **kwargs)
     else:
         agent.load_checkpoint(kwargs['checkpoint_path'])
-        deep_rl.test(dummy_env, agent, num_episode=100, render=kwargs['render'])
+        deep_rl.test(dummy_env, agent, num_episode=100, render=kwargs['render'], seed=kwargs['seed'])

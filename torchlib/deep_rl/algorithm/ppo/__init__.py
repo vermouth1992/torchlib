@@ -22,6 +22,8 @@ def add_args(parser: argparse.ArgumentParser):
     parser.add_argument('--num_updates', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--min_steps_per_batch', '-b', type=int, default=1000)
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--alpha', type=int, default=0.9, help='value mean/std moving ratio')
 
     parser.add_argument('--nn_size', '-s', type=int, default=64)
 

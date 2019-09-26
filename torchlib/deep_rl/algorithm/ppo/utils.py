@@ -15,17 +15,25 @@ Trajectory = namedtuple('Trajectory', ('state', 'action', 'reward_to_go', 'advan
 
 
 class PPOReplayBuffer(ReplayBuffer):
-    def __init__(self, gamma, lam, policy):
+    def __init__(self, gamma, lam, policy, alpha=0.9):
+        """
+
+        Args:
+            gamma: discount factor
+            lam: generalized advantage estimation
+            policy: PPO policy
+            alpha: value moving average ratio
+        """
         super(PPOReplayBuffer, self).__init__(None, None, None, None, None)
         self.gamma = gamma
         self.lam = lam
+        self.alpha = alpha
         self.policy = policy
 
     def _initialize(self):
         self.memory = deque()
         self.running_value_mean = 0.
         self.running_value_std = 0.
-        self.alpha = 0.9
 
     def clear(self):
         self._size = 0
