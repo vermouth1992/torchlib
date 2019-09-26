@@ -16,13 +16,22 @@ from torchlib.utils.distributions import IndependentTanhNormal, IndependentNorma
 from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
 
 
-class BaseStochasticPolicy(nn.Module):
-    def __init__(self, **kwargs):
-        super(BaseStochasticPolicy, self).__init__()
-        self.model = self._create_feature_extractor()
+class BaseStochasticPolicyValue(nn.Module):
+    def __init__(self, shared=True, value_func=False, **kwargs):
+        super(BaseStochasticPolicyValue, self).__init__()
+        self.shared = shared
+        self.action_model = self._create_feature_extractor()
+        if shared:
+            self.value_model = self.action_model
+        else:
+            self.value_model = self._create_feature_extractor()
         feature_output_size = self._calculate_feature_output_size()
-        self.value_head = nn.Linear(feature_output_size, 1)
         self.action_head = self._create_action_head(feature_output_size)
+
+        if value_func:
+            self.value_head = nn.Linear(feature_output_size, 1)
+        else:
+            self.value_head = None
 
     def _calculate_feature_output_size(self):
         raise NotImplementedError
@@ -34,12 +43,14 @@ class BaseStochasticPolicy(nn.Module):
         raise NotImplementedError
 
     def forward_action(self, state):
-        x = self.model.forward(state)  # shape (T, feature_size)
+        x = self.action_model.forward(state)  # shape (T, feature_size)
         action = self.action_head.forward(x)
         return action
 
     def forward_value(self, state):
-        x = self.model.forward(state)  # shape (T, feature_size)
+        if self.value_head is None:
+            raise NotImplementedError
+        x = self.value_model.forward(state)  # shape (T, feature_size)
         value = self.value_head.forward(x)
         return value
 
@@ -55,10 +66,16 @@ class BaseStochasticPolicy(nn.Module):
         Returns: action, hidden, value
 
         """
-        x = self.model.forward(state)  # shape (T, feature_size)
+        x = self.action_model.forward(state)  # shape (T, feature_size)
         action = self.action_head.forward(x)
-        value = self.value_head.forward(x)
-        return action, value.squeeze(-1)
+        if self.value_head is not None:
+            if self.shared:
+                value = self.value_head.forward(x)
+            else:
+                value = self.forward_value(state)
+            return action, value.squeeze(-1)
+        else:
+            return action
 
 
 """
@@ -133,7 +150,7 @@ Simple Policy for low dimensional state and action
 """
 
 
-class _NormalPolicy(BaseStochasticPolicy):
+class _NormalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_NormalPolicy, self).__init__(**kwargs)
@@ -143,7 +160,7 @@ class _NormalPolicy(BaseStochasticPolicy):
         return action_header
 
 
-class _TanhNormalPolicy(BaseStochasticPolicy):
+class _TanhNormalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_TanhNormalPolicy, self).__init__(**kwargs)
@@ -153,7 +170,7 @@ class _TanhNormalPolicy(BaseStochasticPolicy):
         return action_header
 
 
-class _BetaPolicy(BaseStochasticPolicy):
+class _BetaPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_BetaPolicy, self).__init__(**kwargs)
@@ -163,7 +180,7 @@ class _BetaPolicy(BaseStochasticPolicy):
         return action_header
 
 
-class _CategoricalPolicy(BaseStochasticPolicy):
+class _CategoricalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
         super(_CategoricalPolicy, self).__init__(**kwargs)
@@ -173,7 +190,7 @@ class _CategoricalPolicy(BaseStochasticPolicy):
         return action_header
 
 
-class _NNPolicy(BaseStochasticPolicy):
+class _NNPolicy(BaseStochasticPolicyValue):
     def __init__(self, nn_size, state_dim, **kwargs):
         self.nn_size = nn_size
         self.state_dim = state_dim
@@ -194,7 +211,7 @@ class _NNPolicy(BaseStochasticPolicy):
         return model
 
 
-class _AtariCNNPolicy(BaseStochasticPolicy):
+class _AtariCNNPolicy(BaseStochasticPolicyValue):
     def __init__(self, num_channel, **kwargs):
         self.num_channel = num_channel
         super(_AtariCNNPolicy, self).__init__(**kwargs)
@@ -214,28 +231,57 @@ class _AtariCNNPolicy(BaseStochasticPolicy):
 
 
 class NormalNNPolicy(_NNPolicy, _NormalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(NormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(NormalNNPolicy, self).__init__(shared=shared, value_func=False,
+                                             nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+
+
+class NormalNNPolicyValue(_NNPolicy, _NormalPolicy):
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(NormalNNPolicyValue, self).__init__(shared=shared, value_func=True,
+                                                  nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
 
 
 class TanhNormalNNPolicy(_NNPolicy, _TanhNormalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                                 shared=shared, value_func=False)
+
+
+class TanhNormalNNPolicyValue(_NNPolicy, _TanhNormalPolicy):
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(TanhNormalNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                                      shared=shared, value_func=True)
 
 
 class BetaNNPolicy(_NNPolicy, _BetaPolicy):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(BetaNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(BetaNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                           shared=shared, value_func=False)
+
+
+class BetaNNPolicyValue(_NNPolicy, _BetaPolicy):
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(BetaNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                                shared=shared, value_func=True)
 
 
 class CategoricalNNPolicy(_NNPolicy, _CategoricalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim):
-        super(CategoricalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(CategoricalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                                  shared=shared, value_func=False)
+
+
+class CategoricalNNPolicyValue(_NNPolicy, _CategoricalPolicy):
+    def __init__(self, nn_size, state_dim, action_dim, shared):
+        super(CategoricalNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
+                                                       shared=shared, value_func=True)
 
 
 class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
     def __init__(self, num_channel, action_dim):
-        super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim)
+        super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim,
+                                          shared=True, value_func=False)
 
     def _normalize_obs(self, state):
         state = state.type(FloatTensor)
@@ -252,8 +298,31 @@ class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
         return super(AtariPolicy, self).forward_action(state)
 
     def forward_value(self, state):
+        raise NotImplementedError
+
+
+class AtariPolicyValue(_AtariCNNPolicy, _CategoricalPolicy):
+    def __init__(self, num_channel, action_dim):
+        super(AtariPolicyValue, self).__init__(num_channel=num_channel, action_dim=action_dim,
+                                               shared=True, value_func=True)
+
+    def _normalize_obs(self, state):
+        state = state.type(FloatTensor)
+        state = state / 255.0
+        state = state.permute(0, 3, 1, 2)
+        return state
+
+    def forward(self, state):
         state = self._normalize_obs(state)
-        return super(AtariPolicy, self).forward_value(state)
+        return super(AtariPolicyValue, self).forward(state)
+
+    def forward_action(self, state):
+        state = self._normalize_obs(state)
+        return super(AtariPolicyValue, self).forward_action(state)
+
+    def forward_value(self, state):
+        state = self._normalize_obs(state)
+        return super(AtariPolicyValue, self).forward_value(state)
 
 
 """
