@@ -26,6 +26,7 @@ def add_args(parser: argparse.ArgumentParser):
     parser.add_argument('--alpha', type=float, default=0.9, help='value mean/std moving ratio')
 
     parser.add_argument('--nn_size', '-s', type=int, default=64)
+    parser.add_argument('--policy', type=str, default='normal')
     parser.add_argument('--shared', action='store_true')
 
 
@@ -41,7 +42,7 @@ def get_nets(env, args):
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
 
-    from torchlib.deep_rl.models.policy import CategoricalNNPolicyValue, BetaNNPolicyValue
+    from torchlib.deep_rl.models.policy import CategoricalNNPolicyValue, BetaNNPolicyValue, NormalNNPolicyValue
     from torchlib.deep_rl.envs import is_atari_env, is_ple_game
 
     if len(env.observation_space.shape) == 1:
@@ -50,8 +51,14 @@ def get_nets(env, args):
             policy_net = CategoricalNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                   shared=args['shared'])
         else:
-            policy_net = BetaNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
-                                           shared=args['shared'])
+            if args['policy'] == 'beta':
+                policy_net = BetaNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
+                                               shared=args['shared'])
+            elif args['policy'] == 'normal':
+                policy_net = NormalNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
+                                                 shared=args['shared'])
+            else:
+                raise NotImplementedError
 
         if enable_cuda:
             policy_net.cuda()
