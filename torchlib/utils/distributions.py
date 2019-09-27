@@ -4,12 +4,12 @@ Rewrite Pytorch builtin distribution function to favor policy gradient
 """
 
 import math
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.distributions import Independent, Transform, constraints, TransformedDistribution, Distribution
 from torch.distributions import Normal, Beta, AffineTransform
-
 from torchlib.common import eps
 
 
@@ -44,6 +44,23 @@ class TanhNormal(TransformedDistribution):
     def expand(self, batch_shape, _instance=None):
         new = self._get_checked_instance(TanhNormal, _instance)
         return super(TanhNormal, self).expand(batch_shape, _instance=new)
+
+    @property
+    def mean(self):
+        x = self.base_dist.mean
+        for transform in self.transforms:
+            x = transform(x)
+        return x
+
+    def entropy(self):
+        """ Use samples to approximate true entropy.
+
+        Returns:
+
+        """
+        samples = self.rsample(sample_shape=torch.Size())
+        entropy_hat = -self.log_prob(value=samples)
+        return entropy_hat
 
     @property
     def loc(self):
