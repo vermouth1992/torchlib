@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', type=int, default=1992)
     # parser.add_argument('--logdir', type=str, default=None)
-    # parser.add_argument('--checkpoint_path', type=str, default=None)
+    parser.add_argument('--checkpoint_path', type=str, default=None)
 
     algorithm_parsers = parser.add_subparsers(title='algorithm', help='algorithm specific parser', dest='algo')
     ppo_parser = algorithm_parsers.add_parser('ppo')
