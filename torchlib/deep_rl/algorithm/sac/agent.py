@@ -5,6 +5,7 @@ The advantage is that it automatically incorporates exploration by encouraging l
 """
 
 import copy
+import os
 
 import numpy as np
 import torch
@@ -147,10 +148,9 @@ class Agent(BaseAgent):
         self.policy_net.load_state_dict(state_dict)
 
     def train(self, env, exp_name, num_epochs, epoch_length, prefill_steps,
-              replay_pool_size, batch_size, seed, logdir=None, checkpoint_path=None,
+              replay_pool_size, batch_size, logdir=None, checkpoint_path=None,
               **kwargs):
 
-        env.seed(seed)
         logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
         sampler = StepSampler(prefill_steps=prefill_steps, logger=logger)
 
@@ -163,6 +163,11 @@ class Agent(BaseAgent):
         )
 
         sampler.initialize(env, self, replay_pool)
+
+        if checkpoint_path is None:
+            dummy_env = env.env_fns[0]()
+            checkpoint_path = os.path.join(logger.get_output_dir(), dummy_env.spec.id)
+            del dummy_env
 
         best_mean_episode_reward = -np.inf
         timer = Timer()

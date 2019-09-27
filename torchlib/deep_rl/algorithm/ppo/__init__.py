@@ -29,6 +29,8 @@ def add_args(parser: argparse.ArgumentParser):
     parser.add_argument('--policy', type=str, default='tanh_normal')
     parser.add_argument('--shared', action='store_true')
 
+    parser.add_argument('--exp_name', type=str, default='ppo')
+
 
 def get_nets(env, args):
     import gym

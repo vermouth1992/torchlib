@@ -142,10 +142,14 @@ class Agent(deep_rl.BaseAgent):
         self.load_state_dict(state_dict)
 
     def train(self, env, exp_name, num_epoch, num_updates, gamma, min_steps_per_batch, batch_size=128, alpha=0.9,
-              logdir=None, seed=1996, checkpoint_path=None, save_freq=5, **kwargs):
-
+              logdir=None, checkpoint_path=None, **kwargs):
         # create logger
+        config = locals()
+        config['self'] = str(self.policy_net)
+        del config['env']
         logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
+
+        logger.save_config(config)
         if checkpoint_path is None:
             dummy_env = env.env_fns[0]()
             checkpoint_path = os.path.join(logger.get_output_dir(), dummy_env.spec.id)
@@ -156,8 +160,6 @@ class Agent(deep_rl.BaseAgent):
         replay_buffer = PPOReplayBuffer(gamma=gamma, lam=self.lam, policy=self, alpha=alpha)
         sampler.initialize(env=env, policy=self, pool=replay_buffer)
 
-        env.seed(seed)
-
         # initialize training progress
         total_timesteps = 0
         best_avg_return = -np.inf
@@ -166,15 +168,17 @@ class Agent(deep_rl.BaseAgent):
         for itr in range(num_epoch):
             replay_buffer.clear()
             sampler.sample_trajectories()
-            train_data_loader = replay_buffer.random_iterator(batch_size)
-            self.update_policy(train_data_loader, epoch=num_updates, logger=logger)
 
             # calculate statistics
             total_timesteps += len(replay_buffer)
-            best_avg_return = max(logger.get_stats('EpReward')[0], best_avg_return)
+            currentEpReward = logger.get_stats('EpReward')[0]
+            if currentEpReward >= best_avg_return:
+                if checkpoint_path is not None:
+                    self.save_checkpoint(checkpoint_path=checkpoint_path + '_best.ckpt')
+                best_avg_return = currentEpReward
 
-            if (itr + 1) % save_freq == 0:
-                self.save_checkpoint(checkpoint_path=checkpoint_path + '_epoch.{}.ckpt'.format(itr + 1))
+            train_data_loader = replay_buffer.random_iterator(batch_size)
+            self.update_policy(train_data_loader, epoch=num_updates, logger=logger)
 
             logger.log_tabular('Epoch (Total {})'.format(num_epoch), itr + 1)
             logger.log_tabular('Time Elapsed', timer.get_time_elapsed())

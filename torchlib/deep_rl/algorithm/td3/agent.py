@@ -7,6 +7,7 @@ The key difference with DDPG lies in
 """
 
 import copy
+import os
 
 import numpy as np
 import torch
@@ -100,15 +101,19 @@ class Agent(deep_rl.BaseAgent):
                 soft_update(self.target_critic_module, self.critic_module, tau)
                 soft_update(self.target_actor_module, self.actor_module, tau)
 
-    def train(self, env, exp_name, actor_noise=None, seed=1996,
+    def train(self, env, exp_name, actor_noise=None,
               prefill_steps=10000, num_epochs=1000, epoch_length=1000,
               replay_pool_size=1000000, replay_buffer=None,
               num_updates=10, policy_freq=2, batch_size=128,
               target_noise=0.2, clip_noise=0.5, tau=5e-3, gamma=0.99,
               log_dir=None, checkpoint_path=None, **kwargs):
 
-        env.seed(seed)
         logger = EpochLogger(output_dir=log_dir, exp_name=exp_name)
+
+        if checkpoint_path is None:
+            dummy_env = env.env_fns[0]()
+            checkpoint_path = os.path.join(logger.get_output_dir(), dummy_env.spec.id)
+            del dummy_env
 
         best_mean_episode_reward = -np.inf
         timer = Timer()

@@ -11,6 +11,7 @@ For each algorithm, then need to have the following components
 
 import argparse
 import pprint
+import time
 
 import numpy as np
 import torchlib.deep_rl.algorithm as rl_algo
@@ -20,14 +21,13 @@ from torchlib.utils.random import set_global_seeds
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Running rl algorithms')
     parser.add_argument('--env_name', type=str)
-    parser.add_argument('--exp_name', type=str, default=None)
     parser.add_argument('--num_envs', type=int, default=1)
     parser.add_argument('--frame_length', type=int, default=None)
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', type=int, default=1992)
-    parser.add_argument('--logdir', type=str, default=None)
-    parser.add_argument('--checkpoint_path', type=str, default=None)
+    # parser.add_argument('--logdir', type=str, default=None)
+    # parser.add_argument('--checkpoint_path', type=str, default=None)
 
     algorithm_parsers = parser.add_subparsers(title='algorithm', help='algorithm specific parser', dest='algo')
     ppo_parser = algorithm_parsers.add_parser('ppo')
@@ -46,6 +46,10 @@ if __name__ == '__main__':
 
     # Set random seeds
     set_global_seeds(kwargs['seed'])
+
+    # set logger directory
+    logdir = '/tmp/experiments/{}_{}_{}_{}'.format(kwargs['env_name'], kwargs['exp_name'],
+                                                   time.strftime("%m-%d-%Y_%H-%M-%S"), kwargs['seed'])
 
     if kwargs['algo'] == 'ppo':
         policy_net = rl_algo.ppo.get_nets(dummy_env, kwargs)
@@ -74,7 +78,8 @@ if __name__ == '__main__':
 
     if not kwargs['test']:
         del dummy_env
-        agent.train(env=env, **kwargs)
+        env.seed(kwargs['seed'])
+        agent.train(env=env, logdir=logdir, **kwargs)
     else:
         agent.load_checkpoint(kwargs['checkpoint_path'])
         deep_rl.test(dummy_env, agent, num_episode=100, render=kwargs['render'], seed=kwargs['seed'])
