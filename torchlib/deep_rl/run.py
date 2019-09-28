@@ -57,7 +57,7 @@ if __name__ == '__main__':
     elif kwargs['algo'] == 'sac':
         nets = rl_algo.sac.get_nets(dummy_env, kwargs)
         discrete = deep_rl.envs.is_discrete(dummy_env)
-        if kwargs['automatic_alpha']:
+        if not kwargs['no_automatic_alpha']:
             if discrete:
                 target_entropy = -np.log(dummy_env.action_space.n) * 0.95
             else:

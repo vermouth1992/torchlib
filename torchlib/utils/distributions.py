@@ -26,7 +26,9 @@ class TanhTransform(Transform):
         return torch.tanh(x)
 
     def _inverse(self, y):
-        return 0.5 * (torch.log1p(y + eps) - torch.log1p(-y + eps))
+        # to avoid evil machine error
+        y = torch.clamp(y, min=-1. + eps, max=1. - eps)
+        return 0.5 * (torch.log1p(y) - torch.log1p(-y))
 
     def log_abs_det_jacobian(self, x, y):
         return np.log(4.) + 2. * x - 2 * F.softplus(2. * x)

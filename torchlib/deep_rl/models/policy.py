@@ -243,9 +243,9 @@ class NormalNNPolicyValue(_NNPolicy, _NormalPolicy):
 
 
 class TanhNormalNNPolicy(_NNPolicy, _TanhNormalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim, shared):
+    def __init__(self, nn_size, state_dim, action_dim):
         super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
-                                                 shared=shared, value_func=False)
+                                                 shared=False, value_func=False)
 
 
 class TanhNormalNNPolicyValue(_NNPolicy, _TanhNormalPolicy):
@@ -255,9 +255,9 @@ class TanhNormalNNPolicyValue(_NNPolicy, _TanhNormalPolicy):
 
 
 class BetaNNPolicy(_NNPolicy, _BetaPolicy):
-    def __init__(self, nn_size, state_dim, action_dim, shared):
+    def __init__(self, nn_size, state_dim, action_dim):
         super(BetaNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
-                                           shared=shared, value_func=False)
+                                           shared=False, value_func=False)
 
 
 class BetaNNPolicyValue(_NNPolicy, _BetaPolicy):
@@ -267,9 +267,9 @@ class BetaNNPolicyValue(_NNPolicy, _BetaPolicy):
 
 
 class CategoricalNNPolicy(_NNPolicy, _CategoricalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim, shared):
+    def __init__(self, nn_size, state_dim, action_dim):
         super(CategoricalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
-                                                  shared=shared, value_func=False)
+                                                  shared=False, value_func=False)
 
 
 class CategoricalNNPolicyValue(_NNPolicy, _CategoricalPolicy):
@@ -281,7 +281,7 @@ class CategoricalNNPolicyValue(_NNPolicy, _CategoricalPolicy):
 class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
     def __init__(self, num_channel, action_dim):
         super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim,
-                                          shared=True, value_func=False)
+                                          shared=False, value_func=False)
 
     def _normalize_obs(self, state):
         state = state.type(FloatTensor)

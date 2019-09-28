@@ -9,7 +9,7 @@ from .agent import Agent
 def add_args(parser):
     # constructor arguments
     parser.add_argument('--learning_rate', type=float, default=3e-4)
-    parser.add_argument('--automatic_alpha', action='store_true')
+    parser.add_argument('--no_automatic_alpha', action='store_true')
     parser.add_argument('--alpha', type=float, default=0.2)
     parser.add_argument('--tau', type=float, default=5e-3)
     parser.add_argument('--gamma', type=float, default=0.99)
