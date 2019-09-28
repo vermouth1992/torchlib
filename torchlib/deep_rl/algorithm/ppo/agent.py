@@ -57,6 +57,7 @@ class Agent(deep_rl.BaseAgent):
         log_probs = []
         for obs, action in data_loader:
             obs = move_tensor_to_gpu(obs)
+            action = move_tensor_to_gpu(action)
             action_distribution = self.policy_net.forward_action(obs)
             log_probs.append(action_distribution.log_prob(action))
         log_probs = torch.cat(log_probs, dim=0).cpu().numpy()

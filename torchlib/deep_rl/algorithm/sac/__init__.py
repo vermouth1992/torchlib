@@ -1,9 +1,6 @@
 from torchlib import deep_rl
 
 from .agent import Agent
-from torchlib import deep_rl
-
-from .agent import Agent
 
 
 def add_args(parser):
