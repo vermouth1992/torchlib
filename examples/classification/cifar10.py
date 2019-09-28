@@ -18,7 +18,7 @@ from torchlib.dataset.image.cifar10 import get_cifar10_data_loader
 from torchlib.models.resnet import ResNet32x32
 from torchlib.trainer import Trainer
 from torchlib.utils.layers import conv2d_bn_lrelu_block, linear_bn_relu_dropout_block
-from torchlib.contrib.adabound import AdaBound, AdaBoundW
+from torchlib.contrib.optim.adabound import AdaBoundW
 
 
 def ResNet18():

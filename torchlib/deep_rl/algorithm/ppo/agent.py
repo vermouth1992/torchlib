@@ -3,9 +3,9 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torchlib import deep_rl
 from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_numpy_to_tensor
+from torchlib.contrib.optim import RAdam
 from torchlib.dataset.utils import create_data_loader
 from torchlib.utils.logx import EpochLogger
 from torchlib.utils.timer import Timer
@@ -35,7 +35,7 @@ class Agent(deep_rl.BaseAgent):
         self.policy_net = policy_net
         if enable_cuda:
             self.policy_net.cuda()
-        self.policy_optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
+        self.policy_optimizer = RAdam(policy_net.parameters(), lr=learning_rate)
         self.baseline_loss = nn.MSELoss()
         self.lam = lam
         self.max_grad_norm = max_grad_norm
