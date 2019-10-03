@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name='torchlib',
+    name='mylib',
     version='0.1',
-    packages=['torchlib'],
+    packages=find_packages(),
     url='https://github.com/vermouth1992/torchlib',
     license='MIT',
     author='Chi Zhang',
