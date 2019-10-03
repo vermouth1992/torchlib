@@ -39,11 +39,13 @@ class Agent(drl.BaseAgent):
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
 
+    @tf.function
     def _predict_step(self, states):
         action_distribution = self.policy_net(states, training=False)[0]
         return action_distribution.sample()
 
     def predict_batch(self, states):
+        states = tf.convert_to_tensor(states)
         return self._predict_step(states).numpy()
 
     def _predict_log_prob_step(self, state, action):
@@ -103,7 +105,7 @@ class Agent(drl.BaseAgent):
         return policy_loss, value_loss, entropy_loss, negative_approx_kl_mean
 
     def update_policy(self, data_loader, epoch, logger):
-        for epoch_index in range(epoch):
+        for _ in tf.range(epoch):
             for batch_sample in data_loader:
                 observation, action, discount_rewards, advantage, old_log_prob = batch_sample
                 policy_loss, value_loss, entropy_loss, negative_approx_kl_mean = \

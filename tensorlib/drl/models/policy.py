@@ -3,6 +3,8 @@ import tensorflow_probability as tfp
 
 ds = tfp.distributions
 
+from tensorlib.utils.distribution import TanhMultivariateNormalDiag
+
 
 class BaseStochasticPolicyValue(tf.keras.Model):
     def __init__(self, shared=True, value_func=False, **kwargs):
@@ -26,7 +28,6 @@ class BaseStochasticPolicyValue(tf.keras.Model):
     def _create_action_head(self):
         raise NotImplementedError
 
-    @tf.function(experimental_relax_shapes=True)
     def call(self, state, training=None, mask=None):
         x = self.action_model(state)  # shape (T, feature_size)
         action = self.action_head(x)
@@ -63,8 +64,8 @@ class _NormalActionHead(tf.keras.Model):
                                                                                                          initial_range))
 
     def call(self, feature, training=None, mask=None):
-        mu = self.mu_header.forward(feature)
-        logstd = self.log_std_header.forward(feature)
+        mu = self.mu_header(feature)
+        logstd = self.log_std_header(feature)
         logstd = tf.clip_by_value(logstd, clip_value_min=self.log_std_range[0],
                                   clip_value_max=self.log_std_range[1])
         return ds.MultivariateNormalDiag(mu, tf.exp(logstd), allow_nan_stats=False)
@@ -72,14 +73,11 @@ class _NormalActionHead(tf.keras.Model):
 
 class _TanhNormalActionHead(_NormalActionHead):
     def call(self, feature, training=None, mask=None):
-        mu = self.mu_header.forward(feature)
-        logstd = self.log_std_header.forward(feature)
+        mu = self.mu_header(feature)
+        logstd = self.log_std_header(feature)
         logstd = tf.clip_by_value(logstd, clip_value_min=self.log_std_range[0],
                                   clip_value_max=self.log_std_range[1])
-        return ds.TransformedDistribution(
-            distribution=ds.MultivariateNormalDiag(mu, tf.exp(logstd), allow_nan_stats=False),
-            bijector=tfp.bijectors.Tanh()
-        )
+        return TanhMultivariateNormalDiag(mu, tf.exp(logstd))
 
 
 class _BetaActionHead(tf.keras.Model):
@@ -90,8 +88,8 @@ class _BetaActionHead(tf.keras.Model):
         self.log_beta_header = tf.keras.layers.Dense(action_dim)
 
     def call(self, inputs, training=None, mask=None):
-        log_alpha = self.log_alpha_header.forward(inputs)
-        log_beta = self.log_beta_header.forward(inputs)
+        log_alpha = self.log_alpha_header(inputs)
+        log_beta = self.log_beta_header(inputs)
         return ds.Independent(
             distribution=ds.Beta(tf.exp(log_alpha), tf.exp(log_beta), allow_nan_stats=False),
             reinterpreted_batch_ndims=1
@@ -210,15 +208,15 @@ class NormalNNPolicyValue(_NNPolicy, _NormalPolicy):
 
 
 class TanhNormalNNPolicy(_NNPolicy, _TanhNormalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim):
+    def __init__(self, nn_size, state_dim, action_dim, shared_std=False):
         super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
-                                                 shared=False, value_func=False)
+                                                 shared=False, value_func=False, shared_std=shared_std)
 
 
 class TanhNormalNNPolicyValue(_NNPolicy, _TanhNormalPolicy):
-    def __init__(self, nn_size, state_dim, action_dim, shared):
+    def __init__(self, nn_size, state_dim, action_dim, shared, shared_std=False):
         super(TanhNormalNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
-                                                      shared=shared, value_func=True)
+                                                      shared=shared, value_func=True, shared_std=shared_std)
 
 
 class BetaNNPolicy(_NNPolicy, _BetaPolicy):
