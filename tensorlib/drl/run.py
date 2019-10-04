@@ -53,6 +53,7 @@ if __name__ == '__main__':
 
     if kwargs['algo'] == 'ppo':
         policy_net = rl_algo.ppo.get_nets(dummy_env, kwargs)
+        policy_net.build(input_shape=(None,) + dummy_env.observation_space.shape)
         agent = rl_algo.ppo.Agent(policy_net=policy_net, **kwargs)
     elif kwargs['algo'] == 'sac':
         nets = rl_algo.sac.get_nets(dummy_env, kwargs)
@@ -72,12 +73,11 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError
 
-    env = drl.envs.make_env(env_name=kwargs['env_name'],
-                            num_envs=kwargs['num_envs'],
-                            frame_length=kwargs['frame_length'])
-
     if not kwargs['test']:
         del dummy_env
+        env = drl.envs.make_env(env_name=kwargs['env_name'],
+                                num_envs=kwargs['num_envs'],
+                                frame_length=kwargs['frame_length'])
         env.seed(kwargs['seed'])
         agent.train(env=env, logdir=logdir, **kwargs)
     else:

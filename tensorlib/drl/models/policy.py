@@ -22,6 +22,34 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         else:
             self.value_head = None
 
+        # create tensorflow static graph for fast computation
+
+        ob_shape = [None, self.state_dim]
+        ac_shape = [None] if self.discrete else [None, self.action_dim]
+        ac_dtype = tf.int32 if self.discrete else tf.float32
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
+        def select_action(state):
+            print('Building select action graph')
+            return self(state)[0].sample()
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape), tf.TensorSpec(shape=ac_shape, dtype=ac_dtype)])
+        def predict_log_prob(state, action):
+            print('Building predict log probability graph')
+            return self(state)[0].log_prob(action)
+
+        if value_func:
+            @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
+            def predict_value(state):
+                print('Building predict value function graph')
+                return self(state)[1]
+        else:
+            predict_value = None
+
+        self.select_action = select_action
+        self.predict_log_prob = predict_log_prob
+        self.predict_value = predict_value
+
     def _create_feature_extractor(self):
         raise NotImplementedError
 
@@ -30,15 +58,15 @@ class BaseStochasticPolicyValue(tf.keras.Model):
 
     def call(self, state, training=None, mask=None):
         x = self.action_model(state)  # shape (T, feature_size)
-        action = self.action_head(x)
+        action_distribution = self.action_head(x)
         if self.value_head is not None:
             if self.shared:
                 value = self.value_head(x)
             else:
                 value = self.value_head(self.value_model(state))
-            return action, tf.squeeze(value, axis=-1)
+            return action_distribution, tf.squeeze(value, axis=-1)
         else:
-            return action
+            return action_distribution, None
 
 
 """
@@ -46,7 +74,7 @@ Various Action Head
 """
 
 
-class _NormalActionHead(tf.keras.Model):
+class _NormalActionHead(tf.keras.layers.Layer):
     def __init__(self, action_dim, shared_std=False, log_std_range=(-20., 2.)):
         super(_NormalActionHead, self).__init__()
         self.log_std_range = log_std_range
@@ -68,7 +96,9 @@ class _NormalActionHead(tf.keras.Model):
         logstd = self.log_std_header(feature)
         logstd = tf.clip_by_value(logstd, clip_value_min=self.log_std_range[0],
                                   clip_value_max=self.log_std_range[1])
-        return ds.MultivariateNormalDiag(mu, tf.exp(logstd), allow_nan_stats=False)
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda a: ds.MultivariateNormalDiag(mu, tf.exp(logstd), allow_nan_stats=False),
+        )(inputs=(mu, logstd))
 
 
 class _TanhNormalActionHead(_NormalActionHead):
@@ -77,10 +107,12 @@ class _TanhNormalActionHead(_NormalActionHead):
         logstd = self.log_std_header(feature)
         logstd = tf.clip_by_value(logstd, clip_value_min=self.log_std_range[0],
                                   clip_value_max=self.log_std_range[1])
-        return TanhMultivariateNormalDiag(mu, tf.exp(logstd))
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda a: TanhMultivariateNormalDiag(a[0], tf.exp(a[1])),
+        )(inputs=(mu, logstd))
 
 
-class _BetaActionHead(tf.keras.Model):
+class _BetaActionHead(tf.keras.layers.Layer):
     def __init__(self, action_dim, log_std_range=(-20., 4.)):
         super(_BetaActionHead, self).__init__()
         self.log_std_range = log_std_range
@@ -90,13 +122,14 @@ class _BetaActionHead(tf.keras.Model):
     def call(self, inputs, training=None, mask=None):
         log_alpha = self.log_alpha_header(inputs)
         log_beta = self.log_beta_header(inputs)
-        return ds.Independent(
-            distribution=ds.Beta(tf.exp(log_alpha), tf.exp(log_beta), allow_nan_stats=False),
-            reinterpreted_batch_ndims=1
-        )
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda a: ds.Independent(
+                distribution=ds.Beta(tf.exp(a[0]), tf.exp(a[1]), allow_nan_stats=False),
+                reinterpreted_batch_ndims=1
+            ))(inputs=(log_alpha, log_beta))
 
 
-class _CategoricalActionHead(tf.keras.Model):
+class _CategoricalActionHead(tf.keras.layers.Layer):
     def __init__(self, action_dim):
         super(_CategoricalActionHead, self).__init__()
         self.action_head = tf.keras.Sequential(
@@ -108,7 +141,9 @@ class _CategoricalActionHead(tf.keras.Model):
 
     def call(self, inputs, training=None, mask=None):
         probs = self.action_head(inputs)
-        return ds.Categorical(probs=probs, allow_nan_stats=False)
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda probs: ds.Categorical(probs=probs, allow_nan_stats=False)
+        )(inputs=probs)
 
 
 """
@@ -120,6 +155,7 @@ class _NormalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, shared_std, **kwargs):
         self.action_dim = action_dim
         self.shared_std = shared_std
+        self.discrete = False
         super(_NormalPolicy, self).__init__(**kwargs)
 
     def _create_action_head(self):
@@ -131,6 +167,7 @@ class _TanhNormalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, shared_std, **kwargs):
         self.action_dim = action_dim
         self.shared_std = shared_std
+        self.discrete = False
         super(_TanhNormalPolicy, self).__init__(**kwargs)
 
     def _create_action_head(self):
@@ -141,6 +178,7 @@ class _TanhNormalPolicy(BaseStochasticPolicyValue):
 class _BetaPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
+        self.discrete = False
         super(_BetaPolicy, self).__init__(**kwargs)
 
     def _create_action_head(self):
@@ -151,6 +189,7 @@ class _BetaPolicy(BaseStochasticPolicyValue):
 class _CategoricalPolicy(BaseStochasticPolicyValue):
     def __init__(self, action_dim, **kwargs):
         self.action_dim = action_dim
+        self.discrete = True
         super(_CategoricalPolicy, self).__init__(**kwargs)
 
     def _create_action_head(self):
@@ -167,7 +206,7 @@ class _NNPolicy(BaseStochasticPolicyValue):
     def _create_feature_extractor(self):
         model = tf.keras.Sequential(
             layers=[
-                tf.keras.layers.Dense(self.nn_size, input_shape=(self.state_dim,)),
+                tf.keras.layers.Dense(self.nn_size),
                 tf.keras.layers.ReLU(),
                 tf.keras.layers.Dense(self.nn_size),
                 tf.keras.layers.ReLU()

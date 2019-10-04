@@ -3,6 +3,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from tensorlib import drl
+from tensorlib.drl.models.policy import BaseStochasticPolicyValue
 from tensorlib.utils.logx import EpochLogger
 from tensorlib.utils.timer import Timer
 
@@ -10,7 +11,7 @@ from .utils import PPOReplayBuffer, PPOSampler
 
 
 class Agent(drl.BaseAgent):
-    def __init__(self, policy_net: tf.keras.Model, learning_rate=1e-3, lam=1., clip_param=0.2,
+    def __init__(self, policy_net: BaseStochasticPolicyValue, learning_rate=1e-3, lam=1., clip_param=0.2,
                  entropy_coef=0.01, value_coef=0.5, target_kl=0.05, max_grad_norm=0.5, **kwargs):
         """
 
@@ -39,29 +40,17 @@ class Agent(drl.BaseAgent):
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
 
-    @tf.function
-    def _predict_step(self, states):
-        action_distribution = self.policy_net(states, training=False)[0]
-        return action_distribution.sample()
-
     def predict_batch(self, states):
-        states = tf.convert_to_tensor(states)
-        return self._predict_step(states).numpy()
-
-    def _predict_log_prob_step(self, state, action):
-        action_distribution = self.policy_net(state, training=False)[0]
-        return action_distribution.log_prob(action)
+        states = tf.convert_to_tensor(states, dtype=tf.float32)
+        return self.policy_net.select_action(states).numpy()
 
     def predict_log_prob_batch(self, state, action):
-        data_loader = tf.data.Dataset.from_tensor_slices((state, action)).batch(32)
+        data_loader = tf.data.Dataset.from_tensor_slices((state, action)).batch(64)
         log_probs = []
         for state, action in data_loader:
-            log_probs.append(self._predict_log_prob_step(state, action))
+            log_probs.append(self.policy_net.predict_log_prob(state, action))
         log_probs = tf.concat(log_probs, axis=0).numpy()
         return log_probs
-
-    def _predict_state_value_step(self, state):
-        return self.policy_net(state)[1]
 
     def predict_state_value_batch(self, state):
         """ compute the state value using nn baseline
@@ -72,15 +61,16 @@ class Agent(drl.BaseAgent):
         Returns: (batch_size,)
 
         """
-        data_loader = tf.data.Dataset.from_tensors(state)
+        data_loader = tf.data.Dataset.from_tensor_slices(state).batch(64)
         values = []
         for obs in data_loader:
-            values.append(self._predict_state_value_step(obs))
+            values.append(self.policy_net.predict_value(obs))
         values = tf.concat(values, axis=0).numpy()
         return values
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _update_policy_step(self, observation, action, discount_rewards, advantage, old_log_prob):
+        print('Creating ppo policy step update graph with batch size {}'.format(observation.shape[0]))
         with tf.GradientTape() as tape:
             distribution, raw_baselines = self.policy_net(observation, training=True)
             entropy_loss = tf.reduce_mean(distribution.entropy())
@@ -125,7 +115,7 @@ class Agent(drl.BaseAgent):
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
-        self.policy_net.save_weights(checkpoint_path)
+        self.policy_net.save_weights(checkpoint_path, save_format='h5')
 
     def load_checkpoint(self, checkpoint_path):
         print('Load checkpoint from {}'.format(checkpoint_path))
