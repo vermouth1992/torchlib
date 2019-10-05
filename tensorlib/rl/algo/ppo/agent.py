@@ -2,15 +2,15 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from tensorlib import drl
-from tensorlib.drl.models.policy import BaseStochasticPolicyValue
+from tensorlib import rl
+from tensorlib.rl.models.policy import BaseStochasticPolicyValue
 from tensorlib.utils.logx import EpochLogger
 from tensorlib.utils.timer import Timer
 
 from .utils import PPOReplayBuffer, PPOSampler
 
 
-class Agent(drl.BaseAgent):
+class Agent(rl.BaseAgent):
     def __init__(self, policy_net: BaseStochasticPolicyValue, learning_rate=1e-3, lam=1., clip_param=0.2,
                  entropy_coef=0.01, value_coef=0.5, target_kl=0.05, max_grad_norm=0.5, **kwargs):
         """

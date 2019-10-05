@@ -7,8 +7,8 @@ from collections import namedtuple, deque
 import numpy as np
 from scipy import signal
 import tensorflow as tf
-from tensorlib.drl.utils.replay.replay import ReplayBuffer
-from tensorlib.drl.utils.replay.sampler import Sampler
+from tensorlib.rl.utils.replay.replay import ReplayBuffer
+from tensorlib.rl.utils.replay.sampler import Sampler
 from tensorlib.utils.math import unnormalize, normalize
 
 Trajectory = namedtuple('Trajectory', ('state', 'action', 'reward_to_go', 'advantage', 'old_log_prob'))

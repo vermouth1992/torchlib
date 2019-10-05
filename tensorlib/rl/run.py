@@ -13,9 +13,9 @@ import argparse
 import pprint
 import time
 
+from tensorlib import rl
 import numpy as np
-import tensorlib.drl.algo as rl_algo
-from tensorlib import drl
+import tensorlib.rl.algo as rl_algo
 from tensorlib.utils.random import set_global_seeds
 
 if __name__ == '__main__':
@@ -40,9 +40,9 @@ if __name__ == '__main__':
     kwargs = vars(parser.parse_args())
     pprint.pprint(kwargs)
 
-    dummy_env = drl.envs.make_env(env_name=kwargs['env_name'],
-                                  num_envs=None,
-                                  frame_length=kwargs['frame_length'])
+    dummy_env = rl.envs.make_env(env_name=kwargs['env_name'],
+                                 num_envs=None,
+                                 frame_length=kwargs['frame_length'])
 
     # Set random seeds
     set_global_seeds(kwargs['seed'])
@@ -57,7 +57,7 @@ if __name__ == '__main__':
         agent = rl_algo.ppo.Agent(policy_net=policy_net, **kwargs)
     elif kwargs['algo'] == 'sac':
         nets = rl_algo.sac.get_nets(dummy_env, kwargs)
-        discrete = drl.envs.is_discrete(dummy_env)
+        discrete = rl.envs.is_discrete(dummy_env)
         if not kwargs['no_automatic_alpha']:
             if discrete:
                 target_entropy = -np.log(dummy_env.action_space.n) * 0.95
@@ -68,18 +68,18 @@ if __name__ == '__main__':
         agent = rl_algo.sac.Agent(nets=nets, discrete=discrete, target_entropy=target_entropy, **kwargs)
     elif kwargs['algo'] == 'td3':
         nets = rl_algo.td3.get_nets(dummy_env, kwargs)
-        assert not drl.envs.is_discrete(dummy_env), 'TD3 only supports continuous environment'
+        assert not rl.envs.is_discrete(dummy_env), 'TD3 only supports continuous environment'
         agent = rl_algo.td3.Agent(nets=nets, **kwargs)
     else:
         raise NotImplementedError
 
     if not kwargs['test']:
         del dummy_env
-        env = drl.envs.make_env(env_name=kwargs['env_name'],
-                                num_envs=kwargs['num_envs'],
-                                frame_length=kwargs['frame_length'])
+        env = rl.envs.make_env(env_name=kwargs['env_name'],
+                               num_envs=kwargs['num_envs'],
+                               frame_length=kwargs['frame_length'])
         env.seed(kwargs['seed'])
         agent.train(env=env, logdir=logdir, **kwargs)
     else:
         agent.load_checkpoint(kwargs['checkpoint_path'])
-        drl.test(dummy_env, agent, num_episode=100, render=kwargs['render'], seed=kwargs['seed'])
+        rl.test(dummy_env, agent, num_episode=100, render=kwargs['render'], seed=kwargs['seed'])

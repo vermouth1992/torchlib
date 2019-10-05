@@ -3,12 +3,12 @@ Define a bunch of new environments to fast deep RL algorithm verifying
 """
 
 import gym
-from tensorlib import drl
+from tensorlib import rl
 
 from .cartpole_continuous import CartPoleEnvContinuous
 from .pendulum import PendulumEnvNormalized
 
-__all__ = ['drl']
+__all__ = ['rl']
 
 # construct env_name list for atari. Lazy evaluation
 atari_env_name_list = []
@@ -79,13 +79,11 @@ def make_env(env_name, num_envs=None, frame_length=None):
 
     import gym
     if env_name.startswith('Roboschool'):
-        import roboschool
         __all__.append('roboschool')
 
     if env_name == 'FlappyBird-v0':
-        import gym_ple
         __all__.append('gym_ple')
-        from tensorlib.drl.envs.wrappers import wrap_flappybird
+        from tensorlib.rl.envs.wrappers import wrap_flappybird
 
         wrapper = lambda env: wrap_flappybird(env=env, frame_length=frame_length)
 

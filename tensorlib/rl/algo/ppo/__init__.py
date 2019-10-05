@@ -38,25 +38,25 @@ def get_nets(env, args):
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
 
-    from tensorlib.drl.envs import is_atari_env, is_ple_game
+    from tensorlib.rl.envs import is_atari_env, is_ple_game
 
     if len(env.observation_space.shape) == 1:
         # low dimensional environment
         if discrete:
-            from tensorlib.drl.models.policy import CategoricalNNPolicyValue
+            from tensorlib.rl.models.policy import CategoricalNNPolicyValue
             policy_net = CategoricalNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                   shared=args['shared'])
         else:
             if args['policy'] == 'beta':
-                from tensorlib.drl.models.policy import BetaNNPolicyValue
+                from tensorlib.rl.models.policy import BetaNNPolicyValue
                 policy_net = BetaNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                shared=args['shared'])
             elif args['policy'] == 'normal':
-                from tensorlib.drl.models.policy import NormalNNPolicyValue
+                from tensorlib.rl.models.policy import NormalNNPolicyValue
                 policy_net = NormalNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                  shared=args['shared'])
             elif args['policy'] == 'tanh_normal':
-                from tensorlib.drl.models.policy import TanhNormalNNPolicyValue
+                from tensorlib.rl.models.policy import TanhNormalNNPolicyValue
                 policy_net = TanhNormalNNPolicyValue(nn_size=args['nn_size'], state_dim=ob_dim, action_dim=ac_dim,
                                                      shared=args['shared'])
             else:
@@ -68,7 +68,7 @@ def get_nets(env, args):
         if env.observation_space.shape[:2] == (84, 84):
             frame_history_len = env.observation_space.shape[-1]
 
-            from tensorlib.drl.models.policy import AtariPolicy
+            from tensorlib.rl.models.policy import AtariPolicy
             policy_net = AtariPolicy(num_channel=frame_history_len, action_dim=env.action_space.n)
 
             return policy_net
