@@ -79,9 +79,11 @@ def make_env(env_name, num_envs=None, frame_length=None):
 
     import gym
     if env_name.startswith('Roboschool'):
+        import roboschool
         __all__.append('roboschool')
 
     if env_name == 'FlappyBird-v0':
+        import gym_ple
         __all__.append('gym_ple')
         from tensorlib.rl.envs.wrappers import wrap_flappybird
 
