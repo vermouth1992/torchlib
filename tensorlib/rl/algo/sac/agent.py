@@ -86,14 +86,11 @@ class Agent(rl.BaseAgent):
             # policy loss
             if self.discrete:
                 # for discrete action space, we can directly compute kl divergence analytically without sampling
-                action_distribution, log_prob = self.policy_net.predict_action_log_prob(obs)
-                # q_values_min = self.q_network.predict_min_value(obs)  # (batch_size, ac_dim)
-                # target_distribution = ds.Categorical(logits=q_values_min, dtype=tf.int64)
-                # policy_loss = tf.reduce_mean(ds.kl_divergence(action_distribution, target_distribution))
-                # log_prob = -action_distribution.entropy()
-                q_values_pi_min = self.q_network.predict_min_value_with_action(obs, action_distribution)
-                policy_loss = tf.reduce_mean(log_prob * self.get_alpha() - q_values_pi_min)
-
+                action_distribution = self.policy_net.predict_action_distribution(obs)
+                q_values_min = self.q_network.predict_min_value(obs)  # (batch_size, ac_dim)
+                target_distribution = ds.Categorical(logits=q_values_min, dtype=tf.int64)
+                policy_loss = tf.reduce_mean(ds.kl_divergence(action_distribution, target_distribution))
+                log_prob = -action_distribution.entropy()
             else:
                 action, log_prob = self.policy_net.predict_action_log_prob(obs)
                 q_values_pi_min = self.q_network.predict_min_value_with_action(obs, action)

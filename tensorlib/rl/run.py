@@ -13,9 +13,8 @@ import argparse
 import pprint
 import time
 
-from tensorlib import rl
-import numpy as np
 import tensorlib.rl.algo as rl_algo
+from tensorlib import rl
 from tensorlib.utils.random import set_global_seeds
 
 if __name__ == '__main__':

@@ -27,8 +27,9 @@ class BaseQModule(tf.keras.Model):
         return self(state)
 
     def predict_value_with_action(self, state, action):
-        q_values = self(state)
-        return tf.gather(q_values, tf.expand_dims(action, axis=1), batch_dims=1)
+        q_values = self(state)  # (batch_size, action_dim)
+        action = tf.one_hot(action, depth=self.action_dim, dtype=tf.float32)
+        return tf.reduce_sum(tf.multiply(q_values, action), axis=-1)
 
 
 class BaseCriticModule(tf.keras.Model):
@@ -61,6 +62,7 @@ class QModule(BaseQModule):
                 tf.keras.layers.Dense(action_dim)
             ]
         )
+        self.action_dim = action_dim
 
     def call(self, inputs, training=None, mask=None):
         return self.model(inputs)
@@ -73,6 +75,7 @@ class DuelQModule(BaseQModule):
         self.fc2 = tf.keras.layers.Dense(nn_size, activation='relu')
         self.adv_fc = tf.keras.layers.Dense(action_dim)
         self.value_fc = tf.keras.layers.Dense(1)
+        self.action_dim = action_dim
 
     def call(self, inputs, training=None, mask=None):
         x = inputs
