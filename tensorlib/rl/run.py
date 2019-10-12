@@ -53,19 +53,10 @@ if __name__ == '__main__':
 
     if kwargs['algo'] == 'ppo':
         policy_net = rl_algo.ppo.get_nets(dummy_env, kwargs)
-        policy_net.build(input_shape=(None,) + dummy_env.observation_space.shape)
         agent = rl_algo.ppo.Agent(policy_net=policy_net, **kwargs)
     elif kwargs['algo'] == 'sac':
         nets = rl_algo.sac.get_nets(dummy_env, kwargs)
-        discrete = rl.envs.is_discrete(dummy_env)
-        if not kwargs['no_automatic_alpha']:
-            if discrete:
-                target_entropy = -np.log(dummy_env.action_space.n) * 0.95
-            else:
-                target_entropy = -np.prod(dummy_env.action_space.shape)
-        else:
-            target_entropy = None
-        agent = rl_algo.sac.Agent(nets=nets, discrete=discrete, target_entropy=target_entropy, **kwargs)
+        agent = rl_algo.sac.Agent(nets=nets, action_space=dummy_env.action_space, **kwargs)
     elif kwargs['algo'] == 'td3':
         nets = rl_algo.td3.get_nets(dummy_env, kwargs)
         assert not rl.envs.is_discrete(dummy_env), 'TD3 only supports continuous environment'

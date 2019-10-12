@@ -11,13 +11,13 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         super(BaseStochasticPolicyValue, self).__init__()
         self.shared = shared
         self.action_model = self._create_feature_extractor()
-        if shared:
-            self.value_model = self.action_model
-        else:
-            self.value_model = self._create_feature_extractor()
         self.action_head = self._create_action_head()
 
         if value_func:
+            if shared:
+                self.value_model = self.action_model
+            else:
+                self.value_model = self._create_feature_extractor()
             self.value_head = tf.keras.layers.Dense(1)
         else:
             self.value_head = None
@@ -26,7 +26,7 @@ class BaseStochasticPolicyValue(tf.keras.Model):
 
         ob_shape = [None, self.state_dim]
         ac_shape = [None] if self.discrete else [None, self.action_dim]
-        ac_dtype = tf.int32 if self.discrete else tf.float32
+        ac_dtype = tf.int64 if self.discrete else tf.float32
 
         @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
         def select_action(state):
@@ -37,6 +37,17 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         def predict_log_prob(state, action):
             print('Building predict log probability graph')
             return self(state)[0].log_prob(action)
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
+        def predict_action_log_prob(state):
+            action_distribution = self(state)[0]
+            action = action_distribution.sample()
+            log_prob = action_distribution.log_prob(action)
+            return action, log_prob
+
+        # @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
+        def predict_action_distribution(state):
+            return self(state)[0]
 
         if value_func:
             @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
@@ -49,6 +60,8 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         self.select_action = select_action
         self.predict_log_prob = predict_log_prob
         self.predict_value = predict_value
+        self.predict_action_log_prob = predict_action_log_prob
+        self.predict_action_distribution = predict_action_distribution
 
     def _create_feature_extractor(self):
         raise NotImplementedError
@@ -142,7 +155,7 @@ class _CategoricalActionHead(tf.keras.layers.Layer):
     def call(self, inputs, training=None, mask=None):
         probs = self.action_head(inputs)
         return tfp.layers.DistributionLambda(
-            make_distribution_fn=lambda probs: ds.Categorical(probs=probs, allow_nan_stats=False)
+            make_distribution_fn=lambda probs: ds.Categorical(probs=probs, allow_nan_stats=False, dtype=tf.int64)
         )(inputs=probs)
 
 
@@ -223,7 +236,7 @@ class _AtariCNNPolicy(BaseStochasticPolicyValue):
     def _create_feature_extractor(self):
         feature = tf.keras.Sequential(
             layers=[
-                tf.keras.layers.Input(shape=(64, 64, self.num_channel)),
+                tf.keras.layers.Input(shape=(84, 84, self.num_channel)),
                 tf.keras.layers.Conv2D(filters=32, kernel_size=8, strides=4, activation='relu', padding='same'),
                 tf.keras.layers.Conv2D(filters=64, kernel_size=4, strides=2, activation='relu', padding='same'),
                 tf.keras.layers.Conv2D(filters=64, kernel_size=3, strides=1, activation='relu', padding='same'),
@@ -238,36 +251,42 @@ class NormalNNPolicy(_NNPolicy, _NormalPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared, shared_std=False):
         super(NormalNNPolicy, self).__init__(shared=shared, value_func=False, shared_std=shared_std,
                                              nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+        self.build(input_shape=(None, state_dim))
 
 
 class NormalNNPolicyValue(_NNPolicy, _NormalPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared, shared_std=False):
         super(NormalNNPolicyValue, self).__init__(shared=shared, value_func=True, shared_std=shared_std,
                                                   nn_size=nn_size, state_dim=state_dim, action_dim=action_dim)
+        self.build(input_shape=(None, state_dim))
 
 
 class TanhNormalNNPolicy(_NNPolicy, _TanhNormalPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared_std=False):
         super(TanhNormalNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
                                                  shared=False, value_func=False, shared_std=shared_std)
+        self.build(input_shape=(None, state_dim))
 
 
 class TanhNormalNNPolicyValue(_NNPolicy, _TanhNormalPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared, shared_std=False):
         super(TanhNormalNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
                                                       shared=shared, value_func=True, shared_std=shared_std)
+        self.build(input_shape=(None, state_dim))
 
 
 class BetaNNPolicy(_NNPolicy, _BetaPolicy):
     def __init__(self, nn_size, state_dim, action_dim):
         super(BetaNNPolicy, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
                                            shared=False, value_func=False)
+        self.build(input_shape=(None, state_dim))
 
 
 class BetaNNPolicyValue(_NNPolicy, _BetaPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared):
         super(BetaNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
                                                 shared=shared, value_func=True)
+        self.build(input_shape=(None, state_dim))
 
 
 class CategoricalNNPolicy(_NNPolicy, _CategoricalPolicy):
@@ -280,12 +299,14 @@ class CategoricalNNPolicyValue(_NNPolicy, _CategoricalPolicy):
     def __init__(self, nn_size, state_dim, action_dim, shared):
         super(CategoricalNNPolicyValue, self).__init__(nn_size=nn_size, state_dim=state_dim, action_dim=action_dim,
                                                        shared=shared, value_func=True)
+        self.build(input_shape=(None, state_dim))
 
 
 class AtariPolicy(_AtariCNNPolicy, _CategoricalPolicy):
     def __init__(self, num_channel, action_dim):
         super(AtariPolicy, self).__init__(num_channel=num_channel, action_dim=action_dim,
                                           shared=False, value_func=False)
+        self.build(input_shape=(None, 84, 84, num_channel))
 
     def _normalize_obs(self, state):
         state = state / 255.0
@@ -300,6 +321,7 @@ class AtariPolicyValue(_AtariCNNPolicy, _CategoricalPolicy):
     def __init__(self, num_channel, action_dim):
         super(AtariPolicyValue, self).__init__(num_channel=num_channel, action_dim=action_dim,
                                                shared=True, value_func=True)
+        self.build(input_shape=(None, 84, 84, num_channel))
 
     def _normalize_obs(self, state):
         state = state / 255.0
