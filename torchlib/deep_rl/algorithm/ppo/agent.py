@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torchlib import deep_rl
-from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_to_tensor
+from torchlib.common import move_tensor_to_gpu, device, convert_to_tensor
 from torchlib.dataset.utils import create_data_loader
 from torchlib.utils.logx import EpochLogger
 from torchlib.utils.timer import Timer
@@ -32,9 +32,7 @@ class Agent(deep_rl.BaseAgent):
             target_kl:
             max_grad_norm:
         """
-        self.policy_net = policy_net
-        if enable_cuda:
-            self.policy_net.cuda()
+        self.policy_net = policy_net.to(device)
         self.policy_optimizer = Adam(policy_net.parameters(), lr=learning_rate)
         self.baseline_loss = nn.MSELoss()
         self.lam = lam
@@ -85,37 +83,33 @@ class Agent(deep_rl.BaseAgent):
         for epoch_index in range(epoch):
             for batch_sample in data_loader:
 
-                with torch.autograd.detect_anomaly():
+                # with torch.autograd.detect_anomaly():
 
-                    observation, action, discount_rewards, advantage, old_log_prob = move_tensor_to_gpu(batch_sample)
-                    self.policy_optimizer.zero_grad()
-                    # update policy
-                    distribution, raw_baselines = self.policy_net.forward(observation)
-                    entropy_loss = distribution.entropy().mean()
-                    log_prob = distribution.log_prob(action)
+                observation, action, discount_rewards, advantage, old_log_prob = move_tensor_to_gpu(batch_sample)
+                self.policy_optimizer.zero_grad()
+                # update policy
+                distribution, raw_baselines = self.policy_net.forward(observation)
+                entropy_loss = distribution.entropy().mean()
+                log_prob = distribution.log_prob(action)
 
-                    assert log_prob.shape == advantage.shape, 'log_prob length {}, advantage length {}'.format(
-                        log_prob.shape,
-                        advantage.shape)
+                assert log_prob.shape == advantage.shape, 'log_prob length {}, advantage length {}'.format(
+                    log_prob.shape,
+                    advantage.shape)
 
-                    # if approximated kl is larger than 1.5 target_kl, we early stop training of this batch
-                    negative_approx_kl = log_prob - old_log_prob
-                    negative_approx_kl_mean = torch.mean(-negative_approx_kl).item()
+                # if approximated kl is larger than 1.5 target_kl, we early stop training of this batch
+                negative_approx_kl = log_prob - old_log_prob
+                negative_approx_kl_mean = torch.mean(-negative_approx_kl)
 
-                    if negative_approx_kl_mean > 1.5 * self.target_kl:
-                        # print('Early stopping this iteration. Current kl {:.4f}. Current epoch index {}'.format(
-                        #     negative_approx_kl_mean, epoch_index))
-                        continue
+                ratio = torch.exp(negative_approx_kl)
+                surr1 = ratio * advantage
+                surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
+                policy_loss = -torch.min(surr1, surr2).mean()
+                value_loss = self.baseline_loss(raw_baselines, discount_rewards)
+                loss = policy_loss - entropy_loss * self.entropy_coef + value_loss * self.value_coef
 
-                    ratio = torch.exp(negative_approx_kl)
-                    surr1 = ratio * advantage
-                    surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
-                    policy_loss = -torch.min(surr1, surr2).mean()
-
-                    value_loss = self.baseline_loss(raw_baselines, discount_rewards)
-
-                    loss = policy_loss - entropy_loss * self.entropy_coef + value_loss * self.value_coef
-
+                if negative_approx_kl_mean <= 1.5 * self.target_kl:
+                    # print('Early stopping this iteration. Current kl {:.4f}. Current epoch index {}'.format(
+                    #     negative_approx_kl_mean, epoch_index))
                     nn.utils.clip_grad_norm_(self.policy_net.parameters(), self.max_grad_norm)
 
                     loss.backward()
@@ -124,7 +118,7 @@ class Agent(deep_rl.BaseAgent):
                 logger.store(PolicyLoss=policy_loss.item())
                 logger.store(ValueLoss=value_loss.item())
                 logger.store(EntropyLoss=entropy_loss.item())
-                logger.store(NegativeAvgKL=negative_approx_kl_mean)
+                logger.store(NegativeAvgKL=negative_approx_kl_mean.item())
 
     @property
     def state_dict(self):
