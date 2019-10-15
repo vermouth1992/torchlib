@@ -108,9 +108,12 @@ class Agent(rl.BaseAgent):
                     alpha_gradient = alpha_tape.gradient(alpha_loss, self.log_alpha_tensor)
                     self.alpha_optimizer.apply_gradients(zip([alpha_gradient], [self.log_alpha_tensor]))
 
-    def predict_batch(self, states):
+    def predict_batch(self, states, deterministic=False):
         states = tf.convert_to_tensor(states, dtype=tf.float32)
-        return self.policy_net.select_action(states).numpy()
+        if deterministic:
+            return self.policy_net.select_action(states).numpy()
+        else:
+            return self.policy_net.sample_action(states).numpy()
 
     def save_checkpoint(self, checkpoint_path):
         print('Saving checkpoint to {}'.format(checkpoint_path))
@@ -159,6 +162,10 @@ class Agent(rl.BaseAgent):
                 reward = tf.convert_to_tensor(reward)
                 self.update(obs=obs, actions=actions, next_obs=next_obs, done=done, reward=reward)
                 self.update_target()
+
+
+            # evaluate current policy using deterministic version.
+
 
             total_timesteps += epoch_length * env.num_envs
             # save best model

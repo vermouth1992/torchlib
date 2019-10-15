@@ -13,7 +13,7 @@ import torch.distributions
 import torch.nn.functional as F
 import torch.optim
 import torch.optim as optim
-from torchlib.common import FloatTensor, enable_cuda, convert_numpy_to_tensor, device
+from torchlib.common import FloatTensor, enable_cuda, convert_to_tensor, device
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.utils.replay.replay import TransitionReplayBuffer
 from torchlib.deep_rl.utils.replay.sampler import StepSampler
@@ -76,11 +76,11 @@ class Agent(BaseAgent):
         Returns: None
 
         """
-        obs = convert_numpy_to_tensor(obs)
-        actions = convert_numpy_to_tensor(actions)
-        next_obs = convert_numpy_to_tensor(next_obs)
-        done = convert_numpy_to_tensor(done).type(FloatTensor)
-        reward = convert_numpy_to_tensor(reward)
+        obs = convert_to_tensor(obs)
+        actions = convert_to_tensor(actions)
+        next_obs = convert_to_tensor(next_obs)
+        done = convert_to_tensor(done).type(FloatTensor)
+        reward = convert_to_tensor(reward)
 
         # q loss
         q_values, q_values2 = self.q_network.forward(obs, actions, False)

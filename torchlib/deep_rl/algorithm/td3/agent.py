@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torchlib import deep_rl
-from torchlib.common import convert_numpy_to_tensor, enable_cuda, FloatTensor
+from torchlib.common import convert_to_tensor, enable_cuda, FloatTensor
 from torchlib.deep_rl.utils.replay.replay import TransitionReplayBuffer
 from torchlib.deep_rl.utils.replay.sampler import StepSampler
 from torchlib.utils.logx import EpochLogger
@@ -43,7 +43,7 @@ class Agent(deep_rl.BaseAgent):
 
     @torch.no_grad()
     def predict_batch(self, state):
-        state = convert_numpy_to_tensor(state.astype(np.float32))
+        state = convert_to_tensor(state.astype(np.float32))
         return self.actor_module.forward(state).cpu().numpy()
 
     def state_dict(self):
@@ -67,7 +67,7 @@ class Agent(deep_rl.BaseAgent):
                clip_noise=0.5, tau=5e-3, gamma=0.99):
         for i in range(num_updates):
             transition = replay_buffer.sample(batch_size)
-            s_batch, a_batch, s2_batch, r_batch, t_batch = convert_numpy_to_tensor(transition, location='gpu')
+            s_batch, a_batch, s2_batch, r_batch, t_batch = convert_to_tensor(transition, location='gpu')
 
             r_batch = r_batch.type(FloatTensor)
             t_batch = t_batch.type(FloatTensor)

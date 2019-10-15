@@ -12,6 +12,9 @@ class TanhMultivariateNormalDiag(ds.TransformedDistribution):
             bijector=tfp.bijectors.Tanh()
         )
 
+    def _mean(self, **kwargs):
+        return tf.tanh(self._distribution.mean())
+
     def entropy(self, name='entropy', **kwargs):
         """ Use negative log probability to estimate the entropy
 

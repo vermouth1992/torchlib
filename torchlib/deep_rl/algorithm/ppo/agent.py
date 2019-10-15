@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torchlib import deep_rl
-from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_numpy_to_tensor
+from torchlib.common import move_tensor_to_gpu, enable_cuda, convert_to_tensor
 from torchlib.dataset.utils import create_data_loader
 from torchlib.utils.logx import EpochLogger
 from torchlib.utils.timer import Timer
@@ -47,7 +47,7 @@ class Agent(deep_rl.BaseAgent):
 
     @torch.no_grad()
     def predict_batch(self, states):
-        states = convert_numpy_to_tensor(states.astype(np.float32))
+        states = convert_to_tensor(states.astype(np.float32))
         action_distribution = self.policy_net.forward_action(states)
         return action_distribution.sample().cpu().numpy()
 

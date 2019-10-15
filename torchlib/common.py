@@ -17,7 +17,7 @@ else:
     device = 'cpu'
 
 
-def convert_numpy_to_tensor(numpy_array, location='gpu'):
+def convert_to_tensor(numpy_array, location='gpu'):
     if isinstance(numpy_array, np.ndarray):
         tensor = torch.from_numpy(numpy_array)
         if enable_cuda and location == 'gpu':

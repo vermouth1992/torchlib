@@ -56,7 +56,7 @@ class StepSampler(Sampler):
 
     def sample(self, policy=None):
         policy = self.policy if policy is None else policy
-        action = policy.predict_batch(self.current_observation)
+        action = policy.predict_batch(self.current_observation, )
         next_observation, reward, terminal, info = self.env.step(action)
 
         self.ep_rewards += reward

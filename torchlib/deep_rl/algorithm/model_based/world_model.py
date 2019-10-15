@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchlib.common import enable_cuda, move_tensor_to_gpu, convert_numpy_to_tensor, FloatTensor
+from torchlib.common import enable_cuda, move_tensor_to_gpu, convert_to_tensor, FloatTensor
 from torchlib.deep_rl.utils.replay.replay import ReplayBuffer
 from torchlib.utils.layers import freeze, unfreeze
 from torchlib.utils.math import normalize, unnormalize
@@ -32,18 +32,18 @@ class WorldModel(object):
 
     def set_statistics(self, dataset: ReplayBuffer):
         state_mean, state_std = dataset.state_mean_std
-        self.state_mean = convert_numpy_to_tensor(state_mean).unsqueeze(dim=0)
-        self.state_std = convert_numpy_to_tensor(state_std).unsqueeze(dim=0)
+        self.state_mean = convert_to_tensor(state_mean).unsqueeze(dim=0)
+        self.state_std = convert_to_tensor(state_std).unsqueeze(dim=0)
         if self.dynamics_model.discrete:
             self.action_mean = None
             self.action_std = None
         else:
             action_mean, action_std = dataset.action_mean_std
-            self.action_mean = convert_numpy_to_tensor(action_mean).unsqueeze(dim=0)
-            self.action_std = convert_numpy_to_tensor(action_std).unsqueeze(dim=0)
+            self.action_mean = convert_to_tensor(action_mean).unsqueeze(dim=0)
+            self.action_std = convert_to_tensor(action_std).unsqueeze(dim=0)
         delta_state_mean, delta_state_std = dataset.delta_state_mean_std
-        self.delta_state_mean = convert_numpy_to_tensor(delta_state_mean).unsqueeze(dim=0)
-        self.delta_state_std = convert_numpy_to_tensor(delta_state_std).unsqueeze(dim=0)
+        self.delta_state_mean = convert_to_tensor(delta_state_mean).unsqueeze(dim=0)
+        self.delta_state_std = convert_to_tensor(delta_state_std).unsqueeze(dim=0)
         if self.cost_fn_batch is None:
             reward_mean, reward_std = dataset.reward_mean_std
             self.reward_mean = reward_mean
@@ -56,8 +56,8 @@ class WorldModel(object):
     def predict_next_state(self, state, action):
         states = np.expand_dims(state, axis=0)
         actions = np.expand_dims(action, axis=0)
-        states = convert_numpy_to_tensor(states)
-        actions = convert_numpy_to_tensor(actions)
+        states = convert_to_tensor(states)
+        actions = convert_to_tensor(actions)
         next_state = self.predict_next_states(states, actions).cpu().numpy()[0]
         return next_state
 
@@ -68,8 +68,8 @@ class WorldModel(object):
     def predict_next_state_reward(self, state, action):
         states = np.expand_dims(state, axis=0)
         actions = np.expand_dims(action, axis=0)
-        states = convert_numpy_to_tensor(states)
-        actions = convert_numpy_to_tensor(actions)
+        states = convert_to_tensor(states)
+        actions = convert_to_tensor(actions)
         next_state, reward = self.predict_next_states_rewards(states, actions)
         next_state = next_state.cpu().numpy()[0]
         reward = reward.cpu().numpy()[0]

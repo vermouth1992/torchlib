@@ -29,9 +29,14 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         ac_dtype = tf.int64 if self.discrete else tf.float32
 
         @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
+        def sample_action(state):
+            print('Building sample action graph')
+            return self(state)[0].sample()
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape)])
         def select_action(state):
             print('Building select action graph')
-            return self(state)[0].sample()
+            return self(state)[0].mean()
 
         @tf.function(input_signature=[tf.TensorSpec(shape=ob_shape), tf.TensorSpec(shape=ac_shape, dtype=ac_dtype)])
         def predict_log_prob(state, action):

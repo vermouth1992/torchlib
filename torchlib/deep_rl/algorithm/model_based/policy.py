@@ -6,7 +6,7 @@ For continuous case, we use regressor.
 import numpy as np
 import torch
 import torch.nn as nn
-from torchlib.common import move_tensor_to_gpu, convert_numpy_to_tensor, enable_cuda
+from torchlib.common import move_tensor_to_gpu, convert_to_tensor, enable_cuda
 from torchlib.deep_rl import BaseAgent
 from torchlib.deep_rl.algorithm.model_based.utils import StateActionPairDataset
 from tqdm.auto import tqdm
@@ -46,8 +46,8 @@ class ImitationPolicy(BaseAgent):
         self.state_std = state_dict['state_std']
 
     def set_state_stats(self, state_mean, state_std):
-        self.state_mean = convert_numpy_to_tensor(state_mean).unsqueeze(dim=0)
-        self.state_std = convert_numpy_to_tensor(state_std).unsqueeze(dim=0)
+        self.state_mean = convert_to_tensor(state_mean).unsqueeze(dim=0)
+        self.state_std = convert_to_tensor(state_std).unsqueeze(dim=0)
 
     def predict(self, state):
         """
@@ -107,7 +107,7 @@ class DiscreteImitationPolicy(ImitationPolicy):
     def predict(self, state):
         state = np.expand_dims(state, axis=0)
         with torch.no_grad():
-            state = convert_numpy_to_tensor(state)
+            state = convert_to_tensor(state)
             state = (state - self.state_mean) / self.state_std
             action = self.model.forward(state)
             action = torch.argmax(action, dim=-1)
@@ -127,7 +127,7 @@ class ContinuousImitationPolicy(ImitationPolicy):
     def predict(self, state):
         state = np.expand_dims(state, axis=0)
         with torch.no_grad():
-            state = convert_numpy_to_tensor(state)
+            state = convert_to_tensor(state)
             state = (state - self.state_mean) / self.state_std
             action = self.model.forward(state)
         return action.cpu().numpy()[0]

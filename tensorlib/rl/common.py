@@ -11,7 +11,16 @@ class BaseAgent(ABC):
         return self.predict_batch(np.expand_dims(state, axis=0))[0]
 
     @abstractmethod
-    def predict_batch(self, states):
+    def predict_batch(self, states, deterministic=False):
+        """ Predict a batch of actions given states
+
+        Args:
+            states: (batch_size, ...)
+            deterministic: (bool). Use to distinguish agent at training time and testing time.
+
+        Returns:
+
+        """
         raise NotImplementedError
 
     def reset(self):

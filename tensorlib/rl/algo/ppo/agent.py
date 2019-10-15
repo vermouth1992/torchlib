@@ -40,9 +40,9 @@ class Agent(rl.BaseAgent):
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
 
-    def predict_batch(self, states):
+    def predict_batch(self, states, deterministic=False):
         states = tf.convert_to_tensor(states, dtype=tf.float32)
-        return self.policy_net.select_action(states).numpy()
+        return self.policy_net.sample_action(states).numpy()
 
     def predict_log_prob_batch(self, state, action):
         data_loader = tf.data.Dataset.from_tensor_slices((state, action)).batch(64)
