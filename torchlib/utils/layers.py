@@ -187,6 +187,24 @@ class Flatten(nn.Module):
         return input.view(input.size(0), -1)
 
 
+class Squeeze(nn.Module):
+    def __init__(self, dim=None):
+        super(Squeeze, self).__init__()
+        self.dim = dim
+
+    def forward(self, tensor):
+        return torch.squeeze(tensor, dim=self.dim)
+
+
+class UnSqueeze(nn.Module):
+    def __init__(self, dim=None):
+        super(UnSqueeze, self).__init__()
+        self.dim = dim
+
+    def forward(self, tensor):
+        return torch.unsqueeze(tensor, dim=self.dim)
+
+
 class DynamicGNoise(nn.Module):
     def __init__(self, shape, std=0.05):
         super().__init__()

@@ -13,7 +13,7 @@ from torch.distributions import Categorical
 
 from torchlib.common import FloatTensor
 from torchlib.utils.distributions import IndependentTanhNormal, IndependentNormal, IndependentRescaledBeta
-from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten
+from torchlib.utils.layers import conv2d_bn_relu_block, linear_bn_relu_block, Flatten, Squeeze
 
 
 class BaseStochasticPolicyValue(nn.Module):
@@ -29,7 +29,10 @@ class BaseStochasticPolicyValue(nn.Module):
         self.action_head = self._create_action_head(feature_output_size)
 
         if value_func:
-            self.value_head = nn.Linear(feature_output_size, 1)
+            self.value_head = nn.Sequential(
+                nn.Linear(feature_output_size, 1),
+                Squeeze(dim=-1),
+            )
         else:
             self.value_head = None
 
@@ -51,7 +54,7 @@ class BaseStochasticPolicyValue(nn.Module):
         if self.value_head is None:
             raise NotImplementedError
         x = self.value_model.forward(state)  # shape (T, feature_size)
-        value = self.value_head.forward(x).squeeze(-1)
+        value = self.value_head.forward(x)
         return value
 
     def forward(self, state):
@@ -73,7 +76,7 @@ class BaseStochasticPolicyValue(nn.Module):
                 value = self.value_head.forward(x)
             else:
                 value = self.forward_value(state)
-            return action, value.squeeze(-1)
+            return action, value
         else:
             return action
 
@@ -137,12 +140,11 @@ class _CategoricalActionHead(nn.Module):
         super(_CategoricalActionHead, self).__init__()
         self.action_head = nn.Sequential(
             nn.Linear(feature_output_size, action_dim),
-            nn.Softmax(dim=-1)
         )
 
     def forward(self, feature):
-        probs = self.action_head.forward(feature)
-        return Categorical(probs=probs)
+        logits = self.action_head.forward(feature)
+        return Categorical(logits=logits)
 
 
 """
