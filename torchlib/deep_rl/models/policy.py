@@ -51,7 +51,7 @@ class BaseStochasticPolicyValue(nn.Module):
         if self.value_head is None:
             raise NotImplementedError
         x = self.value_model.forward(state)  # shape (T, feature_size)
-        value = self.value_head.forward(x)
+        value = self.value_head.forward(x).squeeze(-1)
         return value
 
     def forward(self, state):

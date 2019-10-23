@@ -62,6 +62,7 @@ class BaseStochasticPolicyValue(tf.keras.Model):
         else:
             predict_value = None
 
+        self.sample_action = sample_action
         self.select_action = select_action
         self.predict_log_prob = predict_log_prob
         self.predict_value = predict_value

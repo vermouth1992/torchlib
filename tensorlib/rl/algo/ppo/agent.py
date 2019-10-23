@@ -87,10 +87,10 @@ class Agent(rl.BaseAgent):
 
             loss = policy_loss - entropy_loss * self.entropy_coef + value_loss * self.value_coef
 
-        if negative_approx_kl_mean <= 1.5 * self.target_kl:
-            # only update within trust region.
-            gradients = tape.gradient(loss, self.policy_net.trainable_variables)
-            self.policy_optimizer.apply_gradients(zip(gradients, self.policy_net.trainable_variables))
+            if negative_approx_kl_mean <= 1.5 * self.target_kl:
+                # only update within trust region.
+                gradients = tape.gradient(loss, self.policy_net.trainable_variables)
+                self.policy_optimizer.apply_gradients(zip(gradients, self.policy_net.trainable_variables))
 
         return policy_loss, value_loss, entropy_loss, negative_approx_kl_mean
 
