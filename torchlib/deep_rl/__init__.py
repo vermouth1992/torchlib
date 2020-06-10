@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import gym
 import numpy as np
@@ -31,7 +31,6 @@ class BaseAgent(ABC):
     def predict(self, state):
         return self.predict_batch(np.expand_dims(state, axis=0))[0]
 
-    @abstractmethod
     def predict_batch(self, states):
         raise NotImplementedError
 

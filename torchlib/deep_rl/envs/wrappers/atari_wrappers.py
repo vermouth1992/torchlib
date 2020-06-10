@@ -142,6 +142,7 @@ class ClippedRewardsWrapper(gym.RewardWrapper):
 class StackFrame(gym.Wrapper):
     def __init__(self, env, frame_length=4):
         super(StackFrame, self).__init__(env)
+        self.frame_length = frame_length
         self.single_observation_space = env.observation_space
         low = np.repeat(self.single_observation_space.low, frame_length, axis=-1)
         high = np.repeat(self.single_observation_space.high, frame_length, axis=-1)
@@ -149,7 +150,7 @@ class StackFrame(gym.Wrapper):
         self.observation_space = spaces.Box(low=low, high=high, shape=None, dtype=dtype)
         self.obs = deque(maxlen=frame_length)
         for _ in range(frame_length):
-            self.obs.append(np.zeros(shape=self.single_observation_space.shape))
+            self.obs.append(np.zeros(shape=self.single_observation_space.shape, dtype=dtype))
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
@@ -159,6 +160,9 @@ class StackFrame(gym.Wrapper):
     def reset(self):
         obs = self.env.reset()
         self.obs.append(obs)
+        for _ in range(self.frame_length - 1):
+            obs, reward, done, info = self.env.step(0)
+            self.obs.append(obs)
         return np.concatenate(self.obs, axis=-1)
 
 
